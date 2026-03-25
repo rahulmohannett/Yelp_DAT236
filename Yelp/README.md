@@ -1,6 +1,6 @@
 # Yelp Prototype — Restaurant Discovery Platform with AI-Powered Recommendations
 
-**Course:** DATA228 — Big Data Technologies  
+**Course:** DATA236 — Distributed Systemss  
 **Authors:** Rahul Mohan Devi, Mansi Deshmukh  
 **Due:** March 24, 2026
 
