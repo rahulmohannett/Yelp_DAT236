@@ -1,0 +1,43 @@
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: yelp-config
+  namespace: yelp-prototype
+data:
+  # MongoDB configuration
+  MONGO_HOST: mongodb
+  MONGO_PORT: "27017"
+  MONGO_DATABASE: yelp_db
+  
+  # CORS origins
+  CORS_ORIGINS: "http://localhost:5173,http://localhost,http://frontend,http://frontend.yelp-prototype.svc.cluster.local"
+  
+  # Crypto
+  ALGORITHM: HS256
+
+---
+apiVersion: v1
+kind: Secret
+metadata:
+  name: yelp-secrets
+  namespace: yelp-prototype
+type: Opaque
+data:
+  # JWT secret key
+  SECRET_KEY: c2Vla3JpdDRyb24=
+  
+  # Google Gemini API key (base64: placeholder - replace with actual key)
+  # To generate: echo -n "your_actual_key" | base64
+  GOOGLE_API_KEY: cGxhY2Vob2xkZXItcmVwbGFjZS13aXRoLWFjdHVhbC1nb29nbGUtYXBpLWtleQ==
+  
+  # Tavily API key (base64: placeholder - replace with actual key)
+  TAVILY_API_KEY: cGxhY2Vob2xkZXItcmVwbGFjZS13aXRoLWFjdHVhbC10YXZpbHktYXBpLWtleQ==
+
+---
+# Alternative: Create secrets from command line
+# kubectl create secret generic yelp-secrets \
+#   --from-literal=SECRET_KEY=seekrit4ron \
+#   --from-literal=GOOGLE_API_KEY=your_actual_key \
+#   --from-literal=TAVILY_API_KEY=your_actual_key \
+#   -n yelp-prototype

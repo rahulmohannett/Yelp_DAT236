@@ -1,0 +1,167 @@
+version: '3.8'
+
+services:
+  # MongoDB Database
+  mongodb:
+    image: mongo:7
+    container_name: yelp-mongodb
+    environment:
+      MONGO_INITDB_DATABASE: yelp_db
+    ports:
+      - "27017:27017"
+    volumes:
+      - mongodb_data:/data/db
+    healthcheck:
+      test: ["CMD", "mongosh", "--eval", "db.adminCommand('ping')"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - yelp-network
+
+  # User Service (Port 8001)
+  user-service:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: yelp-user-service
+    environment:
+      MONGO_URI: mongodb://mongodb:27017/yelp_db
+      SECRET_KEY: seekrit4ron
+      GOOGLE_API_KEY: ${GOOGLE_API_KEY}
+      TAVILY_API_KEY: ${TAVILY_API_KEY}
+      CORS_ORIGINS: http://localhost:5173,http://localhost,http://127.0.0.1
+    command: uvicorn app.main_user:app --host 0.0.0.0 --port 8001 --reload
+    ports:
+      - "8001:8001"
+    volumes:
+      - ./backend/app:/app/app
+      - ./backend/uploads:/app/uploads
+    depends_on:
+      mongodb:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8001/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+    networks:
+      - yelp-network
+
+  # Owner Service (Port 8002)
+  owner-service:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: yelp-owner-service
+    environment:
+      MONGO_URI: mongodb://mongodb:27017/yelp_db
+      SECRET_KEY: seekrit4ron
+      GOOGLE_API_KEY: ${GOOGLE_API_KEY}
+      TAVILY_API_KEY: ${TAVILY_API_KEY}
+      CORS_ORIGINS: http://localhost:5173,http://localhost,http://127.0.0.1
+    command: uvicorn app.main_owner:app --host 0.0.0.0 --port 8002 --reload
+    ports:
+      - "8002:8002"
+    volumes:
+      - ./backend/app:/app/app
+      - ./backend/uploads:/app/uploads
+    depends_on:
+      mongodb:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8002/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+    networks:
+      - yelp-network
+
+  # Restaurant Service (Port 8003)
+  restaurant-service:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: yelp-restaurant-service
+    environment:
+      MONGO_URI: mongodb://mongodb:27017/yelp_db
+      SECRET_KEY: seekrit4ron
+      GOOGLE_API_KEY: ${GOOGLE_API_KEY}
+      TAVILY_API_KEY: ${TAVILY_API_KEY}
+      CORS_ORIGINS: http://localhost:5173,http://localhost,http://127.0.0.1
+    command: uvicorn app.main_restaurant:app --host 0.0.0.0 --port 8003 --reload
+    ports:
+      - "8003:8003"
+    volumes:
+      - ./backend/app:/app/app
+      - ./backend/uploads:/app/uploads
+    depends_on:
+      mongodb:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8003/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+    networks:
+      - yelp-network
+
+  # Review Service (Port 8004)
+  review-service:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: yelp-review-service
+    environment:
+      MONGO_URI: mongodb://mongodb:27017/yelp_db
+      SECRET_KEY: seekrit4ron
+      GOOGLE_API_KEY: ${GOOGLE_API_KEY}
+      TAVILY_API_KEY: ${TAVILY_API_KEY}
+      CORS_ORIGINS: http://localhost:5173,http://localhost,http://127.0.0.1
+    command: uvicorn app.main_review:app --host 0.0.0.0 --port 8004 --reload
+    ports:
+      - "8004:8004"
+    volumes:
+      - ./backend/app:/app/app
+      - ./backend/uploads:/app/uploads
+    depends_on:
+      mongodb:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8004/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+    networks:
+      - yelp-network
+
+  # Frontend Service (Port 80)
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    container_name: yelp-frontend
+    ports:
+      - "80:80"
+    depends_on:
+      - user-service
+      - owner-service
+      - restaurant-service
+      - review-service
+    networks:
+      - yelp-network
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost/"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+
+volumes:
+  mongodb_data:
+    driver: local
+  uploads_data:
+    driver: local
+
+networks:
+  yelp-network:
+    driver: bridge
