@@ -11,6 +11,7 @@ class Settings(BaseSettings):
     
     # Database
     DATABASE_URL: str
+    MONGO_URI: str = Field(default="mongodb://localhost:27017/yelp_db")
     
     # JWT
     SECRET_KEY: str

@@ -1,26 +1,25 @@
 """
 Database connection and session management.
 """
-from sqlalchemy import create_engine
-from sqlalchemy.ext.declarative import declarative_base
-from sqlalchemy.orm import sessionmaker
+from motor.motor_asyncio import AsyncIOMotorClient
 from app.config import settings
+from datetime import datetime
 
-engine = create_engine(
-    settings.DATABASE_URL,
-    pool_pre_ping=True,
-    pool_recycle=3600,
-    echo=False
-)
+client = AsyncIOMotorClient(settings.MONGO_URI)
+db = client.yelp_db
 
-SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
-Base = declarative_base()
+async def get_db():
+    """Return MongoDB database instance."""
+    return db
 
-
-def get_db():
-    """Dependency for getting database session."""
-    db = SessionLocal()
-    try:
-        yield db
-    finally:
-        db.close()
+async def init_db():
+    """Create indexes when app starts."""
+    # Sessions: auto-delete when expires_at passes
+    await db.sessions.create_index("expires_at", expireAfterSeconds=0)
+    # Users: email must be unique
+    await db.users.create_index("email", unique=True)
+    # Search indexes
+    await db.restaurants.create_index("city")
+    await db.restaurants.create_index("cuisine_type")
+    await db.reviews.create_index("restaurant_id")
+    await db.favorites.create_index([("user_id", 1), ("restaurant_id", 1)])
