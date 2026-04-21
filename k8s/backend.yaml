@@ -1,0 +1,371 @@
+---
+# User Service Deployment (Port 8001)
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: user-service
+  namespace: yelp-prototype
+  labels:
+    app: user-service
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: user-service
+  template:
+    metadata:
+      labels:
+        app: user-service
+    spec:
+      containers:
+      - name: user-service
+        image: yelp-backend:latest
+        imagePullPolicy: Never
+        command: ["uvicorn", "app.main_user:app", "--host", "0.0.0.0", "--port", "8001"]
+        ports:
+        - containerPort: 8001
+          name: http
+        env:
+        - name: MONGO_URI
+          value: mongodb://mongodb:27017/yelp_db
+        - name: SECRET_KEY
+          valueFrom:
+            secretKeyRef:
+              name: yelp-secrets
+              key: SECRET_KEY
+        - name: GOOGLE_API_KEY
+          valueFrom:
+            secretKeyRef:
+              name: yelp-secrets
+              key: GOOGLE_API_KEY
+        - name: TAVILY_API_KEY
+          valueFrom:
+            secretKeyRef:
+              name: yelp-secrets
+              key: TAVILY_API_KEY
+        - name: CORS_ORIGINS
+          valueFrom:
+            configMapKeyRef:
+              name: yelp-config
+              key: CORS_ORIGINS
+        resources:
+          requests:
+            memory: "256Mi"
+            cpu: "100m"
+          limits:
+            memory: "512Mi"
+            cpu: "500m"
+        volumeMounts:
+        - name: uploads
+          mountPath: /app/uploads
+        livenessProbe:
+          httpGet:
+            path: /health
+            port: 8001
+          initialDelaySeconds: 30
+          periodSeconds: 10
+        readinessProbe:
+          httpGet:
+            path: /health
+            port: 8001
+          initialDelaySeconds: 10
+          periodSeconds: 5
+      volumes:
+      - name: uploads
+        persistentVolumeClaim:
+          claimName: uploads-pvc
+
+---
+# User Service Service
+apiVersion: v1
+kind: Service
+metadata:
+  name: user-service
+  namespace: yelp-prototype
+spec:
+  type: ClusterIP
+  ports:
+  - port: 8001
+    targetPort: 8001
+    protocol: TCP
+  selector:
+    app: user-service
+
+---
+# Owner Service Deployment (Port 8002)
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: owner-service
+  namespace: yelp-prototype
+  labels:
+    app: owner-service
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: owner-service
+  template:
+    metadata:
+      labels:
+        app: owner-service
+    spec:
+      containers:
+      - name: owner-service
+        image: yelp-backend:latest
+        imagePullPolicy: Never
+        command: ["uvicorn", "app.main_owner:app", "--host", "0.0.0.0", "--port", "8002"]
+        ports:
+        - containerPort: 8002
+          name: http
+        env:
+        - name: MONGO_URI
+          value: mongodb://mongodb:27017/yelp_db
+        - name: SECRET_KEY
+          valueFrom:
+            secretKeyRef:
+              name: yelp-secrets
+              key: SECRET_KEY
+        - name: GOOGLE_API_KEY
+          valueFrom:
+            secretKeyRef:
+              name: yelp-secrets
+              key: GOOGLE_API_KEY
+        - name: TAVILY_API_KEY
+          valueFrom:
+            secretKeyRef:
+              name: yelp-secrets
+              key: TAVILY_API_KEY
+        - name: CORS_ORIGINS
+          valueFrom:
+            configMapKeyRef:
+              name: yelp-config
+              key: CORS_ORIGINS
+        resources:
+          requests:
+            memory: "256Mi"
+            cpu: "100m"
+          limits:
+            memory: "512Mi"
+            cpu: "500m"
+        volumeMounts:
+        - name: uploads
+          mountPath: /app/uploads
+        livenessProbe:
+          httpGet:
+            path: /health
+            port: 8002
+          initialDelaySeconds: 30
+          periodSeconds: 10
+        readinessProbe:
+          httpGet:
+            path: /health
+            port: 8002
+          initialDelaySeconds: 10
+          periodSeconds: 5
+      volumes:
+      - name: uploads
+        persistentVolumeClaim:
+          claimName: uploads-pvc
+
+---
+# Owner Service Service
+apiVersion: v1
+kind: Service
+metadata:
+  name: owner-service
+  namespace: yelp-prototype
+spec:
+  type: ClusterIP
+  ports:
+  - port: 8002
+    targetPort: 8002
+    protocol: TCP
+  selector:
+    app: owner-service
+
+---
+# Restaurant Service Deployment (Port 8003)
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: restaurant-service
+  namespace: yelp-prototype
+  labels:
+    app: restaurant-service
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: restaurant-service
+  template:
+    metadata:
+      labels:
+        app: restaurant-service
+    spec:
+      containers:
+      - name: restaurant-service
+        image: yelp-backend:latest
+        imagePullPolicy: Never
+        command: ["uvicorn", "app.main_restaurant:app", "--host", "0.0.0.0", "--port", "8003"]
+        ports:
+        - containerPort: 8003
+          name: http
+        env:
+        - name: MONGO_URI
+          value: mongodb://mongodb:27017/yelp_db
+        - name: SECRET_KEY
+          valueFrom:
+            secretKeyRef:
+              name: yelp-secrets
+              key: SECRET_KEY
+        - name: GOOGLE_API_KEY
+          valueFrom:
+            secretKeyRef:
+              name: yelp-secrets
+              key: GOOGLE_API_KEY
+        - name: TAVILY_API_KEY
+          valueFrom:
+            secretKeyRef:
+              name: yelp-secrets
+              key: TAVILY_API_KEY
+        - name: CORS_ORIGINS
+          valueFrom:
+            configMapKeyRef:
+              name: yelp-config
+              key: CORS_ORIGINS
+        resources:
+          requests:
+            memory: "256Mi"
+            cpu: "100m"
+          limits:
+            memory: "512Mi"
+            cpu: "500m"
+        volumeMounts:
+        - name: uploads
+          mountPath: /app/uploads
+        livenessProbe:
+          httpGet:
+            path: /health
+            port: 8003
+          initialDelaySeconds: 30
+          periodSeconds: 10
+        readinessProbe:
+          httpGet:
+            path: /health
+            port: 8003
+          initialDelaySeconds: 10
+          periodSeconds: 5
+      volumes:
+      - name: uploads
+        persistentVolumeClaim:
+          claimName: uploads-pvc
+
+---
+# Restaurant Service Service
+apiVersion: v1
+kind: Service
+metadata:
+  name: restaurant-service
+  namespace: yelp-prototype
+spec:
+  type: ClusterIP
+  ports:
+  - port: 8003
+    targetPort: 8003
+    protocol: TCP
+  selector:
+    app: restaurant-service
+
+---
+# Review Service Deployment (Port 8004)
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: review-service
+  namespace: yelp-prototype
+  labels:
+    app: review-service
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: review-service
+  template:
+    metadata:
+      labels:
+        app: review-service
+    spec:
+      containers:
+      - name: review-service
+        image: yelp-backend:latest
+        imagePullPolicy: Never
+        command: ["uvicorn", "app.main_review:app", "--host", "0.0.0.0", "--port", "8004"]
+        ports:
+        - containerPort: 8004
+          name: http
+        env:
+        - name: MONGO_URI
+          value: mongodb://mongodb:27017/yelp_db
+        - name: SECRET_KEY
+          valueFrom:
+            secretKeyRef:
+              name: yelp-secrets
+              key: SECRET_KEY
+        - name: GOOGLE_API_KEY
+          valueFrom:
+            secretKeyRef:
+              name: yelp-secrets
+              key: GOOGLE_API_KEY
+        - name: TAVILY_API_KEY
+          valueFrom:
+            secretKeyRef:
+              name: yelp-secrets
+              key: TAVILY_API_KEY
+        - name: CORS_ORIGINS
+          valueFrom:
+            configMapKeyRef:
+              name: yelp-config
+              key: CORS_ORIGINS
+        resources:
+          requests:
+            memory: "256Mi"
+            cpu: "100m"
+          limits:
+            memory: "512Mi"
+            cpu: "500m"
+        volumeMounts:
+        - name: uploads
+          mountPath: /app/uploads
+        livenessProbe:
+          httpGet:
+            path: /health
+            port: 8004
+          initialDelaySeconds: 30
+          periodSeconds: 10
+        readinessProbe:
+          httpGet:
+            path: /health
+            port: 8004
+          initialDelaySeconds: 10
+          periodSeconds: 5
+      volumes:
+      - name: uploads
+        persistentVolumeClaim:
+          claimName: uploads-pvc
+
+---
+# Review Service Service
+apiVersion: v1
+kind: Service
+metadata:
+  name: review-service
+  namespace: yelp-prototype
+spec:
+  type: ClusterIP
+  ports:
+  - port: 8004
+    targetPort: 8004
+    protocol: TCP
+  selector:
+    app: review-service
