@@ -10,11 +10,8 @@ from fastapi.staticfiles import StaticFiles
 import os
 
 from app.config import get_settings
-from app.database import Base, engine
+from app.database import init_db
 from app.routers import auth, users, favorites, history, ai_assistant
-
-# Create tables if they don't exist
-Base.metadata.create_all(bind=engine)
 
 settings = get_settings()
 
@@ -23,6 +20,10 @@ app = FastAPI(
     description="User authentication, profile management, favorites, history, and AI assistant",
     version="1.0.0"
 )
+
+@app.on_event("startup")
+async def startup():
+    await init_db()
 
 # CORS middleware
 app.add_middleware(
