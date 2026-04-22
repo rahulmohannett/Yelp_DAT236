@@ -1,0 +1,165 @@
+---
+# Review Worker Deployment
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: review-worker
+  namespace: yelp-prototype
+  labels:
+    app: review-worker
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: review-worker
+  template:
+    metadata:
+      labels:
+        app: review-worker
+    spec:
+      containers:
+      - name: review-worker
+        image: yelp-backend:latest
+        imagePullPolicy: Never
+        command: ["uvicorn", "app.main_review_worker:app", "--host", "0.0.0.0", "--port", "8005"]
+        ports:
+        - containerPort: 8005
+          name: http
+        env:
+        - name: MONGO_URI
+          value: mongodb://mongodb:27017/yelp_db
+        - name: KAFKA_BOOTSTRAP_SERVERS
+          value: kafka:9092
+        - name: SECRET_KEY
+          valueFrom:
+            secretKeyRef:
+              name: yelp-secrets
+              key: SECRET_KEY
+        - name: GOOGLE_API_KEY
+          valueFrom:
+            secretKeyRef:
+              name: yelp-secrets
+              key: GOOGLE_API_KEY
+        - name: TAVILY_API_KEY
+          valueFrom:
+            secretKeyRef:
+              name: yelp-secrets
+              key: TAVILY_API_KEY
+        resources:
+          requests:
+            memory: "256Mi"
+            cpu: "100m"
+          limits:
+            memory: "512Mi"
+            cpu: "500m"
+        livenessProbe:
+          httpGet:
+            path: /health
+            port: 8005
+          initialDelaySeconds: 30
+          periodSeconds: 10
+        readinessProbe:
+          httpGet:
+            path: /health
+            port: 8005
+          initialDelaySeconds: 10
+          periodSeconds: 5
+
+---
+# Review Worker Service
+apiVersion: v1
+kind: Service
+metadata:
+  name: review-worker
+  namespace: yelp-prototype
+spec:
+  type: ClusterIP
+  ports:
+  - port: 8005
+    targetPort: 8005
+    protocol: TCP
+  selector:
+    app: review-worker
+
+---
+# Restaurant Worker Deployment
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: restaurant-worker
+  namespace: yelp-prototype
+  labels:
+    app: restaurant-worker
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: restaurant-worker
+  template:
+    metadata:
+      labels:
+        app: restaurant-worker
+    spec:
+      containers:
+      - name: restaurant-worker
+        image: yelp-backend:latest
+        imagePullPolicy: Never
+        command: ["uvicorn", "app.main_restaurant_worker:app", "--host", "0.0.0.0", "--port", "8006"]
+        ports:
+        - containerPort: 8006
+          name: http
+        env:
+        - name: MONGO_URI
+          value: mongodb://mongodb:27017/yelp_db
+        - name: KAFKA_BOOTSTRAP_SERVERS
+          value: kafka:9092
+        - name: SECRET_KEY
+          valueFrom:
+            secretKeyRef:
+              name: yelp-secrets
+              key: SECRET_KEY
+        - name: GOOGLE_API_KEY
+          valueFrom:
+            secretKeyRef:
+              name: yelp-secrets
+              key: GOOGLE_API_KEY
+        - name: TAVILY_API_KEY
+          valueFrom:
+            secretKeyRef:
+              name: yelp-secrets
+              key: TAVILY_API_KEY
+        resources:
+          requests:
+            memory: "256Mi"
+            cpu: "100m"
+          limits:
+            memory: "512Mi"
+            cpu: "500m"
+        livenessProbe:
+          httpGet:
+            path: /health
+            port: 8006
+          initialDelaySeconds: 30
+          periodSeconds: 10
+        readinessProbe:
+          httpGet:
+            path: /health
+            port: 8006
+          initialDelaySeconds: 10
+          periodSeconds: 5
+
+---
+# Restaurant Worker Service
+apiVersion: v1
+kind: Service
+metadata:
+  name: restaurant-worker
+  namespace: yelp-prototype
+spec:
+  type: ClusterIP
+  ports:
+  - port: 8006
+    targetPort: 8006
+    protocol: TCP
+  selector:
+    app: restaurant-worker

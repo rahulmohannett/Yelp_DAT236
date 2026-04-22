@@ -11,6 +11,7 @@ import os
 
 from app.config import get_settings
 from app.database import init_db
+from app.kafka_client import init_kafka_client, kafka_client
 from app.routers import reviews
 
 settings = get_settings()
@@ -24,6 +25,15 @@ app = FastAPI(
 @app.on_event("startup")
 async def startup():
     await init_db()
+    # Initialize Kafka producer for publishing review events
+    client = init_kafka_client(settings.KAFKA_BOOTSTRAP_SERVERS)
+    await client.start_producer()
+
+@app.on_event("shutdown")
+async def shutdown():
+    # Gracefully stop Kafka producer
+    if kafka_client:
+        await kafka_client.stop_producer()
 
 # CORS middleware
 app.add_middleware(
