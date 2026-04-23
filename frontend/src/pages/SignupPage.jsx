@@ -1,98 +1,58 @@
 import { useState } from 'react';
-import { Container, Row, Col, Form, Button, Alert, Card } from 'react-bootstrap';
-import { Link, useNavigate } from 'react-router-dom';
-import { authService } from '../services/authService';
+import { useDispatch, useSelector } from 'react-redux';
+import { useNavigate, Link } from 'react-router-dom';
+import { registerThunk } from '../store/authSlice';
 
-function SignupPage({ onLogin }) {
-    const [formData, setFormData] = useState({
-        name: '', email: '', password: '', confirmPassword: '', role: 'customer', city: '',
-    });
-    const [error, setError] = useState('');
-    const [loading, setLoading] = useState(false);
-    const navigate = useNavigate();
+function SignupPage() {
+  const [formData, setFormData] = useState({ name: '', email: '', password: '', role: 'customer' });
+  const dispatch = useDispatch();
+  const navigate = useNavigate();
+  const { loading, error } = useSelector(state => state.auth);
 
-    const handleChange = (e) => {
-        setFormData({ ...formData, [e.target.name]: e.target.value });
-    };
+  const handleChange = (e) => setFormData({ ...formData, [e.target.name]: e.target.value });
 
-    const handleSubmit = async (e) => {
-        e.preventDefault();
-        setError('');
-        if (formData.password !== formData.confirmPassword) {
-            setError('Passwords do not match');
-            return;
-        }
-        setLoading(true);
-        try {
-            const response = await authService.register(
-                formData.email, formData.password, formData.name, formData.role,
-                formData.role === 'owner' ? formData.city : null
-            );
-            onLogin(response.user);
-            navigate('/');
-        } catch (err) {
-            setError(err.response?.data?.detail || 'Registration failed. Please try again.');
-        } finally {
-            setLoading(false);
-        }
-    };
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    const result = await dispatch(registerThunk(formData));
+    if (result.meta.requestStatus === 'fulfilled') {
+      navigate('/');
+    }
+  };
 
-    return (
-        <Container className="mt-5">
-            <Row className="justify-content-center">
-                <Col md={6} sm={10}>
-                    <Card>
-                        <Card.Body className="p-5">
-                            <h2 className="text-center mb-4">Sign Up</h2>
-                            {error && <Alert variant="danger">{error}</Alert>}
-                            <Form onSubmit={handleSubmit}>
-                                <Form.Group className="mb-3">
-                                    <Form.Label>Name</Form.Label>
-                                    <Form.Control type="text" name="name" placeholder="Enter your name"
-                                        value={formData.name} onChange={handleChange} required />
-                                </Form.Group>
-                                <Form.Group className="mb-3">
-                                    <Form.Label>Email</Form.Label>
-                                    <Form.Control type="email" name="email" placeholder="Enter email"
-                                        value={formData.email} onChange={handleChange} required />
-                                </Form.Group>
-                                <Form.Group className="mb-3">
-                                    <Form.Label>Password</Form.Label>
-                                    <Form.Control type="password" name="password" placeholder="Password"
-                                        value={formData.password} onChange={handleChange} required />
-                                </Form.Group>
-                                <Form.Group className="mb-3">
-                                    <Form.Label>Confirm Password</Form.Label>
-                                    <Form.Control type="password" name="confirmPassword" placeholder="Confirm password"
-                                        value={formData.confirmPassword} onChange={handleChange} required />
-                                </Form.Group>
-                                <Form.Group className="mb-3">
-                                    <Form.Label>Account Type</Form.Label>
-                                    <Form.Select name="role" value={formData.role} onChange={handleChange}>
-                                        <option value="customer">Customer</option>
-                                        <option value="owner">Restaurant Owner</option>
-                                    </Form.Select>
-                                </Form.Group>
-                                {formData.role === 'owner' && (
-                                    <Form.Group className="mb-3">
-                                        <Form.Label>City</Form.Label>
-                                        <Form.Control type="text" name="city" placeholder="Enter your city"
-                                            value={formData.city} onChange={handleChange} required={formData.role === 'owner'} />
-                                    </Form.Group>
-                                )}
-                                <Button variant="danger" type="submit" className="w-100" disabled={loading}>
-                                    {loading ? 'Signing up...' : 'Sign Up'}
-                                </Button>
-                            </Form>
-                            <div className="text-center mt-3">
-                                <p className="text-muted">Already have an account? <Link to="/login">Login</Link></p>
-                            </div>
-                        </Card.Body>
-                    </Card>
-                </Col>
-            </Row>
-        </Container>
-    );
+  return (
+    <div className="container mt-5" style={{ maxWidth: '400px' }}>
+      <h2 className="mb-4">Sign Up</h2>
+      {error && <div className="alert alert-danger">{error}</div>}
+      <form onSubmit={handleSubmit}>
+        <div className="mb-3">
+          <label>Name</label>
+          <input type="text" className="form-control" name="name"
+            value={formData.name} onChange={handleChange} required />
+        </div>
+        <div className="mb-3">
+          <label>Email</label>
+          <input type="email" className="form-control" name="email"
+            value={formData.email} onChange={handleChange} required />
+        </div>
+        <div className="mb-3">
+          <label>Password</label>
+          <input type="password" className="form-control" name="password"
+            value={formData.password} onChange={handleChange} required />
+        </div>
+        <div className="mb-3">
+          <label>Role</label>
+          <select className="form-control" name="role" value={formData.role} onChange={handleChange}>
+            <option value="customer">Customer</option>
+            <option value="owner">Owner</option>
+          </select>
+        </div>
+        <button type="submit" className="btn btn-primary w-100" disabled={loading}>
+          {loading ? 'Signing up...' : 'Sign Up'}
+        </button>
+      </form>
+      <p className="mt-3">Already have an account? <Link to="/login">Login</Link></p>
+    </div>
+  );
 }
 
 export default SignupPage;
