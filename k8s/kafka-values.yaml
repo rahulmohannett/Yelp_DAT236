@@ -1,0 +1,69 @@
+# k8s/kafka-values.yaml
+#
+# Custom values for Bitnami Kafka Helm chart
+# Deploy with: helm install kafka bitnami/kafka -f k8s/kafka-values.yaml -n yelp-prototype
+
+# Single-broker KRaft mode (no Zookeeper)
+broker:
+  replicaCount: 1
+  persistence:
+    enabled: true
+    size: 5Gi
+
+# Disable Zookeeper (use KRaft mode)
+zookeeper:
+  enabled: false
+
+# Enable KRaft mode (Kafka without Zookeeper)
+kraft:
+  enabled: true
+
+# Resource limits
+resources:
+  requests:
+    memory: "512Mi"
+    cpu: "250m"
+  limits:
+    memory: "1Gi"
+    cpu: "500m"
+
+# Service configuration
+service:
+  type: ClusterIP
+  ports:
+    client: 9092
+
+# Topic auto-creation (disable in production, enable for dev)
+autoCreateTopicsEnable: true
+deleteTopicEnable: true
+
+# Logging
+logRetentionHours: 24
+logRetentionBytes: 1073741824  # 1GB
+
+# Listeners
+listeners:
+  client:
+    protocol: PLAINTEXT
+  controller:
+    protocol: PLAINTEXT
+  interbroker:
+    protocol: PLAINTEXT
+
+# Allow external access (for debugging from localhost)
+externalAccess:
+  enabled: false  # Set to true if you want to access from outside minikube
+
+# Security (disabled for dev)
+auth:
+  clientProtocol: plaintext
+  interBrokerProtocol: plaintext
+  sasl:
+    enabled: false
+
+# Metrics (optional - for monitoring)
+metrics:
+  kafka:
+    enabled: false
+  jmx:
+    enabled: false

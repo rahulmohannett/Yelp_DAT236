@@ -214,6 +214,8 @@ spec:
         env:
         - name: MONGO_URI
           value: mongodb://mongodb:27017/yelp_db
+        - name: KAFKA_BOOTSTRAP_SERVERS
+          value: kafka:9092
         - name: SECRET_KEY
           valueFrom:
             secretKeyRef:
@@ -307,6 +309,8 @@ spec:
         env:
         - name: MONGO_URI
           value: mongodb://mongodb:27017/yelp_db
+        - name: KAFKA_BOOTSTRAP_SERVERS
+          value: kafka:9092
         - name: SECRET_KEY
           valueFrom:
             secretKeyRef:

@@ -8,6 +8,8 @@ from typing import List, Optional
 from app.database import get_db
 from app.schemas import RestaurantCreate, RestaurantUpdate, RestaurantResponse
 from app.services.auth import get_current_user, get_current_owner
+from app.kafka_client import get_kafka_client
+from app.schemas.kafka_events import RestaurantCreatedEvent
 from datetime import datetime
 from bson import ObjectId
 
@@ -87,26 +89,47 @@ async def get_restaurant(restaurant_id: str, db=Depends(get_db)):
     return RestaurantResponse.model_validate(restaurant)
 
 
-@router.post("", response_model=RestaurantResponse, status_code=status.HTTP_201_CREATED)
+@router.post("", status_code=202)
 async def create_restaurant(
     restaurant_data: RestaurantCreate,
     current_user=Depends(get_current_user),
-    db=Depends(get_db)
+    kafka=Depends(get_kafka_client)
 ):
-    """Create a new restaurant."""
-    photo_urls = restaurant_data.photo_urls
-    fields = restaurant_data.model_dump(exclude={"photo_urls"})
-    fields["owner_id"] = current_user["_id"] if current_user.get("role") == "owner" else None
-    fields["view_count"] = 0
-    fields["photos"] = photo_urls or []
-    fields["created_at"] = datetime.utcnow()
-    fields["updated_at"] = datetime.utcnow()
+    """
+    Create a new restaurant (async via Kafka).
+    Publishes to restaurant.created topic — worker writes to MongoDB.
+    Returns 202 Accepted.
+    """
+    restaurant_id = str(ObjectId())
 
-    result = await db.restaurants.insert_one(fields)
-    restaurant = await db.restaurants.find_one({"_id": result.inserted_id})
-    stats = await calculate_restaurant_stats(restaurant["_id"], db)
-    restaurant.update(stats)
-    return RestaurantResponse.model_validate(restaurant)
+    event = RestaurantCreatedEvent(
+        restaurant_id=restaurant_id,
+        name=restaurant_data.name,
+        cuisine_type=restaurant_data.cuisine_type,
+        price_range=restaurant_data.price_range,
+        address=restaurant_data.address,
+        city=restaurant_data.city,
+        state=restaurant_data.state if hasattr(restaurant_data, "state") else None,
+        zip_code=restaurant_data.zip_code if hasattr(restaurant_data, "zip_code") else None,
+        phone=restaurant_data.phone if hasattr(restaurant_data, "phone") else None,
+        website=restaurant_data.website if hasattr(restaurant_data, "website") else None,
+        hours=restaurant_data.hours if hasattr(restaurant_data, "hours") else None,
+        amenities=restaurant_data.amenities if hasattr(restaurant_data, "amenities") and restaurant_data.amenities else [],
+        owner_id=str(current_user["_id"]) if current_user.get("role") == "owner" else None,
+        photos=restaurant_data.photo_urls if hasattr(restaurant_data, "photo_urls") and restaurant_data.photo_urls else []
+    )
+
+    await kafka.publish_event(
+        topic="restaurant.created",
+        event=event.model_dump(mode="json"),
+        key=restaurant_id
+    )
+
+    return {
+        "status": "pending",
+        "message": "Restaurant is being processed",
+        "restaurant_id": restaurant_id
+    }
 
 
 @router.put("/{restaurant_id}", response_model=RestaurantResponse)
@@ -116,7 +139,7 @@ async def update_restaurant(
     current_user=Depends(get_current_owner),
     db=Depends(get_db)
 ):
-    """Update a restaurant (owner only)."""
+    """Update a restaurant (owner only). Direct DB write — no Kafka needed for updates."""
     restaurant = await db.restaurants.find_one({"_id": ObjectId(restaurant_id)})
     if not restaurant:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Restaurant not found")
@@ -149,4 +172,17 @@ async def upload_restaurant_photo(
     if file.content_type not in allowed_types:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Only JPEG, PNG, GIF, WEBP allowed")
 
-    ext = file.filename.split(".")[-1] if
+    ext = file.filename.split(".")[-1] if "." in file.filename else "jpg"
+    filename = f"{uuid.uuid4().hex}.{ext}"
+    filepath = os.path.join(UPLOAD_DIR, filename)
+    contents = await file.read()
+    with open(filepath, "wb") as f:
+        f.write(contents)
+
+    photo_url = f"/uploads/restaurant_photos/{filename}"
+    await db.restaurant_photos.insert_one({
+        "restaurant_id": ObjectId(restaurant_id),
+        "photo_url": photo_url,
+        "uploaded_at": datetime.utcnow()
+    })
+    return {"photo_url": photo_url}

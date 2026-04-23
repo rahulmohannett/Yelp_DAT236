@@ -8,6 +8,8 @@ from typing import List
 from app.database import get_db
 from app.schemas import ReviewCreate, ReviewUpdate, ReviewResponse
 from app.services.auth import get_current_user
+from app.kafka_client import get_kafka_client
+from app.schemas.kafka_events import ReviewCreatedEvent, ReviewUpdatedEvent, ReviewDeletedEvent
 from datetime import datetime
 from bson import ObjectId
 
@@ -50,14 +52,19 @@ async def get_restaurant_reviews(
     return results
 
 
-@router.post("/restaurants/{restaurant_id}/reviews", response_model=ReviewResponse, status_code=status.HTTP_201_CREATED)
+@router.post("/restaurants/{restaurant_id}/reviews", status_code=202)
 async def create_review(
     restaurant_id: str,
     review_data: ReviewCreate,
     current_user=Depends(get_current_user),
-    db=Depends(get_db)
+    db=Depends(get_db),
+    kafka=Depends(get_kafka_client)
 ):
-    """Create a new review."""
+    """
+    Create a new review (async via Kafka).
+    Publishes to review.created topic — worker writes to MongoDB.
+    Returns 202 Accepted.
+    """
     restaurant = await db.restaurants.find_one({"_id": ObjectId(restaurant_id)})
     if not restaurant:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Restaurant not found")
@@ -69,56 +76,108 @@ async def create_review(
     if existing:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="You have already reviewed this restaurant")
 
-    new_review = {
-        "restaurant_id": ObjectId(restaurant_id),
-        "user_id": current_user["_id"],
-        "rating": review_data.rating,
-        "review_text": review_data.review_text,
-        "created_at": datetime.utcnow(),
-        "updated_at": datetime.utcnow()
+    # Generate review ID upfront so we can return it immediately
+    review_id = str(ObjectId())
+
+    event = ReviewCreatedEvent(
+        review_id=review_id,
+        restaurant_id=restaurant_id,
+        user_id=str(current_user["_id"]),
+        rating=review_data.rating,
+        review_text=review_data.review_text,
+        photos=review_data.photos if hasattr(review_data, "photos") and review_data.photos else []
+    )
+
+    await kafka.publish_event(
+        topic="review.created",
+        event=event.model_dump(mode="json"),
+        key=review_id
+    )
+
+    return {
+        "status": "pending",
+        "message": "Review is being processed",
+        "review_id": review_id,
+        "restaurant_id": restaurant_id
     }
-    result = await db.reviews.insert_one(new_review)
-    new_review["_id"] = result.inserted_id
-    review_dict = await _build_review_response(new_review, db)
-    return ReviewResponse.model_validate(review_dict)
 
 
-@router.put("/{review_id}", response_model=ReviewResponse)
+@router.put("/{review_id}", status_code=202)
 async def update_review(
     review_id: str,
     review_data: ReviewUpdate,
     current_user=Depends(get_current_user),
-    db=Depends(get_db)
+    db=Depends(get_db),
+    kafka=Depends(get_kafka_client)
 ):
-    """Update a review (own reviews only)."""
+    """
+    Update a review (async via Kafka).
+    Publishes to review.updated topic — worker writes to MongoDB.
+    Returns 202 Accepted.
+    """
     review = await db.reviews.find_one({"_id": ObjectId(review_id)})
     if not review:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Review not found")
     if review["user_id"] != current_user["_id"]:
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Not authorized")
 
-    update_fields = review_data.model_dump(exclude_unset=True)
-    update_fields["updated_at"] = datetime.utcnow()
-    await db.reviews.update_one({"_id": ObjectId(review_id)}, {"$set": update_fields})
+    event = ReviewUpdatedEvent(
+        review_id=review_id,
+        restaurant_id=str(review["restaurant_id"]),
+        user_id=str(current_user["_id"]),
+        rating=review_data.rating if hasattr(review_data, "rating") else None,
+        review_text=review_data.review_text if hasattr(review_data, "review_text") else None,
+        photos=review_data.photos if hasattr(review_data, "photos") else None
+    )
 
-    review = await db.reviews.find_one({"_id": ObjectId(review_id)})
-    review_dict = await _build_review_response(review, db)
-    return ReviewResponse.model_validate(review_dict)
+    await kafka.publish_event(
+        topic="review.updated",
+        event=event.model_dump(mode="json"),
+        key=review_id
+    )
+
+    return {
+        "status": "pending",
+        "message": "Review update is being processed",
+        "review_id": review_id
+    }
 
 
-@router.delete("/{review_id}", status_code=status.HTTP_204_NO_CONTENT)
+@router.delete("/{review_id}", status_code=202)
 async def delete_review(
     review_id: str,
     current_user=Depends(get_current_user),
-    db=Depends(get_db)
+    db=Depends(get_db),
+    kafka=Depends(get_kafka_client)
 ):
-    """Delete a review (own reviews only)."""
+    """
+    Delete a review (async via Kafka).
+    Publishes to review.deleted topic — worker deletes from MongoDB.
+    Returns 202 Accepted.
+    """
     review = await db.reviews.find_one({"_id": ObjectId(review_id)})
     if not review:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Review not found")
     if review["user_id"] != current_user["_id"]:
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Not authorized")
-    await db.reviews.delete_one({"_id": ObjectId(review_id)})
+
+    event = ReviewDeletedEvent(
+        review_id=review_id,
+        restaurant_id=str(review["restaurant_id"]),
+        user_id=str(current_user["_id"])
+    )
+
+    await kafka.publish_event(
+        topic="review.deleted",
+        event=event.model_dump(mode="json"),
+        key=review_id
+    )
+
+    return {
+        "status": "pending",
+        "message": "Review deletion is being processed",
+        "review_id": review_id
+    }
 
 
 @router.post("/{review_id}/photos")
