@@ -9,11 +9,9 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 import os
 
-from app.config import get_settings
+from app.config import settings
 from app.database import init_db
 from app.routers import auth, users, favorites, history, ai_assistant
-
-settings = get_settings()
 
 app = FastAPI(
     title="Yelp Prototype - User Service",

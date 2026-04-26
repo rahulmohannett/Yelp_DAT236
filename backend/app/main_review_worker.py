@@ -10,7 +10,7 @@ from contextlib import asynccontextmanager
 from bson import ObjectId
 from datetime import datetime
 
-from app.config import get_settings
+from app.config import settings
 from app.database import get_db
 from app.kafka_client import init_kafka_client, kafka_client
 from app.schemas.kafka_events import ReviewCreatedEvent, ReviewUpdatedEvent, ReviewDeletedEvent
@@ -19,7 +19,6 @@ from app.schemas.kafka_events import ReviewCreatedEvent, ReviewUpdatedEvent, Rev
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
-settings = get_settings()
 
 # Topics this worker subscribes to
 REVIEW_TOPICS = [
@@ -156,22 +155,22 @@ async def update_restaurant_stats(db, restaurant_id: str):
 
 
 # Background task to consume Kafka events
-async def consume_kafka_events():
+async def consume_kafka_events(client):
     """Background task that consumes events from Kafka."""
     try:
         # Start consumer
-        await kafka_client.start_consumer(
+        await client.start_consumer(
             topics=REVIEW_TOPICS,
             group_id="review-worker-group"
         )
         
         # Consume events indefinitely
-        await kafka_client.consume_events(handler=handle_review_event)
+        await client.consume_events(handler=handle_review_event)
     
     except Exception as e:
         logger.error(f"Kafka consumer error: {e}", exc_info=True)
     finally:
-        await kafka_client.stop_consumer()
+        await client.stop_consumer()
 
 
 # Lifespan context manager for startup/shutdown
@@ -181,10 +180,10 @@ async def lifespan(app: FastAPI):
     logger.info("🚀 Review Worker starting up...")
     
     # Initialize Kafka client
-    init_kafka_client(settings.KAFKA_BOOTSTRAP_SERVERS)
+    client = init_kafka_client(settings.KAFKA_BOOTSTRAP_SERVERS)
     
     # Start Kafka consumer in background
-    consumer_task = asyncio.create_task(consume_kafka_events())
+    consumer_task = asyncio.create_task(consume_kafka_events(client))
     
     yield
     

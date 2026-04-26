@@ -1,40 +1,38 @@
 import { useEffect } from 'react';
+import { Container, Row, Col, Spinner } from 'react-bootstrap';
 import { useDispatch, useSelector } from 'react-redux';
-import { fetchFavoritesThunk, removeFavoriteThunk } from '../store/favoritesSlice';
-import { Link } from 'react-router-dom';
+import { fetchFavoritesThunk } from '../store/favoritesSlice';
+import RestaurantCard from '../components/RestaurantCard';
 
 function FavoritesPage() {
-  const dispatch = useDispatch();
-  const { favorites, loading } = useSelector(state => state.favorites);
+    const dispatch = useDispatch();
+    const { favorites, loading, error } = useSelector(state => state.favorites);
 
-  useEffect(() => {
-    dispatch(fetchFavoritesThunk());
-  }, []);
+    useEffect(() => {
+        dispatch(fetchFavoritesThunk());
+    }, [dispatch]);
 
-  const handleRemove = (id) => {
-    dispatch(removeFavoriteThunk(id));
-  };
+    if (loading) {
+        return <Container className="mt-5 text-center"><Spinner animation="border" /></Container>;
+    }
 
-  return (
-    <div className="container mt-4">
-      <h2>My Favorites</h2>
-      {loading && <p>Loading...</p>}
-      {favorites.length === 0 && !loading && <p>No favorites yet.</p>}
-      <div className="row">
-        {favorites.map(f => (
-          <div className="col-md-4 mb-3" key={f.id}>
-            <div className="card h-100">
-              <div className="card-body">
-                <h5 className="card-title">{f.restaurant?.name || f.name}</h5>
-                <Link to={`/restaurants/${f.restaurantId || f.id}`} className="btn btn-outline-primary btn-sm me-2">View</Link>
-                <button className="btn btn-outline-danger btn-sm" onClick={() => handleRemove(f.id)}>Remove</button>
-              </div>
-            </div>
-          </div>
-        ))}
-      </div>
-    </div>
-  );
+    return (
+        <Container className="mt-4">
+            <h2 className="mb-4">My Favorites</h2>
+            {error && <p className="text-danger">{error}</p>}
+            {favorites.length === 0 ? (
+                <p className="text-muted">You haven't added any favorites yet.</p>
+            ) : (
+                <Row>
+                    {favorites.map((restaurant) => (
+                        <Col key={restaurant.id} md={4} sm={6} className="mb-4">
+                            <RestaurantCard restaurant={restaurant} />
+                        </Col>
+                    ))}
+                </Row>
+            )}
+        </Container>
+    );
 }
 
 export default FavoritesPage;
