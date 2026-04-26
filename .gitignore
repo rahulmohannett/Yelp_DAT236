@@ -94,4 +94,4 @@ htmlcov/
 
 # JMeter (for Part 5)
 jmeter.log
-results.jtl
+results.jtl.claude/
