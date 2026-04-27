@@ -210,3 +210,5 @@ docker compose down
 ## Next Steps
 
 Once comfortable with docker-compose, move to Kubernetes (see `k8s/README.md`).
+
+For single-host AWS deployment, use the EC2 production override and runbook in `EC2_DEPLOYMENT.md`.
