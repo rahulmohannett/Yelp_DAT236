@@ -2,6 +2,7 @@
 AI Assistant router for chatbot interactions with persistent conversations.
 """
 from fastapi import APIRouter, Depends, HTTPException, status
+from app.models import to_str_id, USERS
 from typing import List
 from app.database import get_db
 from app.schemas import (
@@ -27,9 +28,9 @@ async def chat(
     # Resolve or create conversation
     conversation = None
     if request.conversation_id:
-        conversation = await db.conversations.find_one({
+        conversation = await db.chat_conversations.find_one({
             "_id": ObjectId(request.conversation_id),
-            "user_id": current_user["_id"]
+            "user_id": ObjectId(current_user["id"])
         })
         if not conversation:
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Conversation not found")
@@ -37,12 +38,12 @@ async def chat(
     if not conversation:
         title = request.message[:80] + ("..." if len(request.message) > 80 else "")
         conversation = {
-            "user_id": current_user["_id"],
+            "user_id": ObjectId(current_user["id"]),
             "title": title,
             "created_at": datetime.utcnow(),
             "updated_at": datetime.utcnow()
         }
-        result = await db.conversations.insert_one(conversation)
+        result = await db.chat_conversations.insert_one(conversation)
         conversation["_id"] = result.inserted_id
 
     # Save user message
@@ -63,7 +64,7 @@ async def chat(
     # Run the AI pipeline
     chatbot = RestaurantChatbot(db)
     result = await chatbot.process_query(
-        user_id=current_user["_id"],
+        user_id=ObjectId(current_user["id"]),
         message=request.message,
         conversation_history=history
     )
@@ -82,7 +83,7 @@ async def chat(
     await db.chat_messages.insert_one(assistant_msg)
 
     # Update conversation timestamp
-    await db.conversations.update_one(
+    await db.chat_conversations.update_one(
         {"_id": conversation["_id"]},
         {"$set": {"updated_at": datetime.utcnow()}}
     )
@@ -100,10 +101,10 @@ async def list_conversations(
     db=Depends(get_db)
 ):
     """List all conversations for the current user, most recent first."""
-    conversations = await db.conversations.find(
-        {"user_id": current_user["_id"]}
+    conversations = await db.chat_conversations.find(
+        {"user_id": ObjectId(current_user["id"])}
     ).sort("updated_at", -1).to_list(None)
-    return [ConversationListItem.model_validate(c) for c in conversations]
+    return [ConversationListItem.model_validate(to_str_id(c)) for c in conversations]
 
 
 @router.get("/conversations/{conversation_id}", response_model=ConversationResponse)
@@ -113,17 +114,17 @@ async def get_conversation(
     db=Depends(get_db)
 ):
     """Get a conversation with all its messages."""
-    conversation = await db.conversations.find_one({
+    conversation = await db.chat_conversations.find_one({
         "_id": ObjectId(conversation_id),
-        "user_id": current_user["_id"]
+        "user_id": ObjectId(current_user["id"])
     })
     if not conversation:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Conversation not found")
     messages = await db.chat_messages.find(
         {"conversation_id": ObjectId(conversation_id)}
     ).sort("created_at", 1).to_list(None)
-    conversation["messages"] = messages
-    return ConversationResponse.model_validate(conversation)
+    conversation["messages"] = [to_str_id(m) for m in messages]
+    return ConversationResponse.model_validate(to_str_id(conversation))
 
 
 @router.delete("/conversations/{conversation_id}", status_code=status.HTTP_204_NO_CONTENT)
@@ -133,11 +134,11 @@ async def delete_conversation(
     db=Depends(get_db)
 ):
     """Delete a conversation and all its messages."""
-    conversation = await db.conversations.find_one({
+    conversation = await db.chat_conversations.find_one({
         "_id": ObjectId(conversation_id),
-        "user_id": current_user["_id"]
+        "user_id": ObjectId(current_user["id"])
     })
     if not conversation:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Conversation not found")
     await db.chat_messages.delete_many({"conversation_id": ObjectId(conversation_id)})
-    await db.conversations.delete_one({"_id": ObjectId(conversation_id)})
+    await db.chat_conversations.delete_one({"_id": ObjectId(conversation_id)})

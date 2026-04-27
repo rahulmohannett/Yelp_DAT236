@@ -3,7 +3,7 @@ Pydantic schemas for Kafka event messages.
 Each event type has a defined schema for validation.
 """
 
-from typing import Optional, List
+from typing import Optional, List, Literal
 from pydantic import BaseModel, Field
 from datetime import datetime
 
@@ -13,23 +13,21 @@ from datetime import datetime
 # ============================================================
 
 class ReviewCreatedEvent(BaseModel):
-    """Event published when a review is created."""
-    event_type: str = Field(default="review.created", const=True)
-    review_id: str = Field(..., description="MongoDB ObjectId as string")
-    restaurant_id: str = Field(..., description="MongoDB ObjectId as string")
-    user_id: str = Field(..., description="MongoDB ObjectId as string")
-    rating: int = Field(..., ge=1, le=5, description="Rating 1-5 stars")
+    event_type: Literal["review.created"] = "review.created"
+    review_id: str
+    restaurant_id: str
+    user_id: str
+    rating: int = Field(..., ge=1, le=5)
     review_text: Optional[str] = None
-    photos: List[str] = Field(default_factory=list, description="Photo URLs")
+    photos: List[str] = Field(default_factory=list)
     created_at: datetime = Field(default_factory=datetime.utcnow)
 
 
 class ReviewUpdatedEvent(BaseModel):
-    """Event published when a review is updated."""
-    event_type: str = Field(default="review.updated", const=True)
-    review_id: str = Field(..., description="MongoDB ObjectId as string")
-    restaurant_id: str = Field(..., description="MongoDB ObjectId as string")
-    user_id: str = Field(..., description="MongoDB ObjectId as string")
+    event_type: Literal["review.updated"] = "review.updated"
+    review_id: str
+    restaurant_id: str
+    user_id: str
     rating: Optional[int] = Field(None, ge=1, le=5)
     review_text: Optional[str] = None
     photos: Optional[List[str]] = None
@@ -37,11 +35,10 @@ class ReviewUpdatedEvent(BaseModel):
 
 
 class ReviewDeletedEvent(BaseModel):
-    """Event published when a review is deleted."""
-    event_type: str = Field(default="review.deleted", const=True)
-    review_id: str = Field(..., description="MongoDB ObjectId as string")
-    restaurant_id: str = Field(..., description="MongoDB ObjectId as string")
-    user_id: str = Field(..., description="MongoDB ObjectId as string")
+    event_type: Literal["review.deleted"] = "review.deleted"
+    review_id: str
+    restaurant_id: str
+    user_id: str
     deleted_at: datetime = Field(default_factory=datetime.utcnow)
 
 
@@ -50,9 +47,8 @@ class ReviewDeletedEvent(BaseModel):
 # ============================================================
 
 class RestaurantCreatedEvent(BaseModel):
-    """Event published when a restaurant is created."""
-    event_type: str = Field(default="restaurant.created", const=True)
-    restaurant_id: str = Field(..., description="MongoDB ObjectId as string")
+    event_type: Literal["restaurant.created"] = "restaurant.created"
+    restaurant_id: str
     name: str
     cuisine_type: str
     price_range: Optional[str] = None
@@ -70,9 +66,8 @@ class RestaurantCreatedEvent(BaseModel):
 
 
 class RestaurantUpdatedEvent(BaseModel):
-    """Event published when a restaurant is updated."""
-    event_type: str = Field(default="restaurant.updated", const=True)
-    restaurant_id: str = Field(..., description="MongoDB ObjectId as string")
+    event_type: Literal["restaurant.updated"] = "restaurant.updated"
+    restaurant_id: str
     name: Optional[str] = None
     cuisine_type: Optional[str] = None
     price_range: Optional[str] = None
@@ -89,23 +84,21 @@ class RestaurantUpdatedEvent(BaseModel):
 
 
 # ============================================================
-# USER EVENTS (Optional - for future use)
+# USER EVENTS
 # ============================================================
 
 class UserCreatedEvent(BaseModel):
-    """Event published when a user is created."""
-    event_type: str = Field(default="user.created", const=True)
-    user_id: str = Field(..., description="MongoDB ObjectId as string")
+    event_type: Literal["user.created"] = "user.created"
+    user_id: str
     email: str
     name: str
-    role: str  # customer or owner
+    role: str
     created_at: datetime = Field(default_factory=datetime.utcnow)
 
 
 class UserUpdatedEvent(BaseModel):
-    """Event published when a user profile is updated."""
-    event_type: str = Field(default="user.updated", const=True)
-    user_id: str = Field(..., description="MongoDB ObjectId as string")
+    event_type: Literal["user.updated"] = "user.updated"
+    user_id: str
     email: Optional[str] = None
     name: Optional[str] = None
     phone: Optional[str] = None
@@ -114,17 +107,13 @@ class UserUpdatedEvent(BaseModel):
 
 
 # ============================================================
-# BOOKING STATUS EVENT (for future async feedback)
+# BOOKING STATUS EVENT
 # ============================================================
 
 class BookingStatusEvent(BaseModel):
-    """
-    Event published by workers to signal completion.
-    Consumers: Frontend services (for async status updates to UI)
-    """
-    event_type: str = Field(default="booking.status", const=True)
-    entity_type: str = Field(..., description="review or restaurant")
-    entity_id: str = Field(..., description="MongoDB ObjectId as string")
-    status: str = Field(..., description="pending, success, failed")
+    event_type: Literal["booking.status"] = "booking.status"
+    entity_type: str
+    entity_id: str
+    status: str
     message: Optional[str] = None
     created_at: datetime = Field(default_factory=datetime.utcnow)

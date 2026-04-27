@@ -1,0 +1,27 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+namespace: yelp-prototype
+
+resources:
+  - ../namespace.yaml
+  - ../mongodb.yaml
+  - ../uploads-pvc.yaml
+  - ../backend.yaml
+  - ../workers.yaml
+  - ../frontend.yaml
+  - configmap.yaml
+  - ingress.yaml
+
+patches:
+  - path: patch-image-pull-policy.yaml
+  - path: patch-frontend-service.yaml
+  - path: patch-storageclass.yaml
+
+images:
+  - name: yelp-backend
+    newName: <AWS_ACCOUNT_ID>.dkr.ecr.<AWS_REGION>.amazonaws.com/yelp-backend
+    newTag: latest
+  - name: yelp-frontend
+    newName: <AWS_ACCOUNT_ID>.dkr.ecr.<AWS_REGION>.amazonaws.com/yelp-frontend
+    newTag: latest

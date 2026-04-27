@@ -1,3 +1,4 @@
+from app.models import to_str_id
 """
 Owner-specific router for restaurant management and analytics.
 """
@@ -28,12 +29,12 @@ async def get_owned_restaurants(
     db=Depends(get_db)
 ):
     """Get all restaurants owned by the current user."""
-    restaurants = await db.restaurants.find({"owner_id": current_user["_id"]}).to_list(None)
+    restaurants = await db.restaurants.find({"owner_id": ObjectId(current_user["id"])}).to_list(None)
     results = []
     for r in restaurants:
         stats = await calculate_restaurant_stats(r["_id"], db)
         r.update(stats)
-        results.append(RestaurantResponse.model_validate(r))
+        results.append(RestaurantResponse.model_validate(to_str_id(r)))
     return results
 
 
@@ -43,7 +44,7 @@ async def get_owner_dashboard(
     db=Depends(get_db)
 ):
     """Get aggregated dashboard stats across all owned restaurants."""
-    restaurants = await db.restaurants.find({"owner_id": current_user["_id"]}).to_list(None)
+    restaurants = await db.restaurants.find({"owner_id": ObjectId(current_user["id"])}).to_list(None)
     restaurant_ids = [r["_id"] for r in restaurants]
 
     if not restaurant_ids:
@@ -112,7 +113,7 @@ async def get_restaurant_analytics(
     restaurant = await db.restaurants.find_one({"_id": ObjectId(restaurant_id)})
     if not restaurant:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Restaurant not found")
-    if restaurant.get("owner_id") != current_user["_id"]:
+    if restaurant.get("owner_id") != ObjectId(current_user["id"]):
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Not authorized")
 
     all_reviews = await db.reviews.find({"restaurant_id": ObjectId(restaurant_id)}).to_list(None)
@@ -157,7 +158,7 @@ async def get_restaurant_reviews_owner(
     restaurant = await db.restaurants.find_one({"_id": ObjectId(restaurant_id)})
     if not restaurant:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Restaurant not found")
-    if restaurant.get("owner_id") != current_user["_id"]:
+    if restaurant.get("owner_id") != ObjectId(current_user["id"]):
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Not authorized")
 
     reviews = await db.reviews.find({"restaurant_id": ObjectId(restaurant_id)}).to_list(None)
@@ -166,7 +167,7 @@ async def get_restaurant_reviews_owner(
         user = await db.users.find_one({"_id": review.get("user_id")})
         review["user_name"] = user["name"] if user else "Unknown"
         review["review_photos"] = []
-        results.append(ReviewResponse.model_validate(review))
+        results.append(ReviewResponse.model_validate(to_str_id(review)))
     return results
 
 
@@ -212,9 +213,9 @@ async def create_claim(
     if restaurant.get("owner_id"):
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Restaurant already claimed")
 
-    existing = await db.claims.find_one({
+    existing = await db.restaurant_claims.find_one({
         "restaurant_id": ObjectId(claim_data.restaurant_id),
-        "owner_id": current_user["_id"],
+        "owner_id": ObjectId(current_user["id"]),
         "status": "pending"
     })
     if existing:
@@ -222,17 +223,17 @@ async def create_claim(
 
     claim = {
         "restaurant_id": ObjectId(claim_data.restaurant_id),
-        "owner_id": current_user["_id"],
+        "owner_id": ObjectId(current_user["id"]),
         "status": "approved",
         "created_at": datetime.utcnow()
     }
-    result = await db.claims.insert_one(claim)
+    result = await db.restaurant_claims.insert_one(claim)
     await db.restaurants.update_one(
         {"_id": ObjectId(claim_data.restaurant_id)},
-        {"$set": {"owner_id": current_user["_id"]}}
+        {"$set": {"owner_id": ObjectId(current_user["id"])}}
     )
     claim["_id"] = result.inserted_id
-    return RestaurantClaimResponse.model_validate(claim)
+    return RestaurantClaimResponse.model_validate(to_str_id(claim))
 
 
 @router.get("/claims", response_model=List[RestaurantClaimResponse])
@@ -241,5 +242,5 @@ async def get_my_claims(
     db=Depends(get_db)
 ):
     """Get all claims submitted by the current owner."""
-    claims = await db.claims.find({"owner_id": current_user["_id"]}).to_list(None)
-    return [RestaurantClaimResponse.model_validate(c) for c in claims]
+    claims = await db.restaurant_claims.find({"owner_id": ObjectId(current_user["id"])}).to_list(None)
+    return [RestaurantClaimResponse.model_validate(to_str_id(c)) for c in claims]

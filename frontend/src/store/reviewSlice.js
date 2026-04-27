@@ -1,27 +1,30 @@
 import { createSlice, createAsyncThunk } from '@reduxjs/toolkit'
 import reviewService from '../services/reviewService'
 
+const getErrorMessage = (err, fallback) =>
+  err.response?.data?.detail || err.response?.data?.message || err.message || fallback
+
 export const fetchReviewsThunk = createAsyncThunk('review/fetchAll', async (restaurantId, thunkAPI) => {
   try {
-    return await reviewService.getReviews(restaurantId)
+    return await reviewService.getRestaurantReviews(restaurantId)
   } catch (err) {
-    return thunkAPI.rejectWithValue(err.response?.data?.message || 'Failed to fetch reviews')
+    return thunkAPI.rejectWithValue(getErrorMessage(err, 'Failed to fetch reviews'))
   }
 })
 
 export const createReviewThunk = createAsyncThunk('review/create', async ({ restaurantId, reviewData }, thunkAPI) => {
   try {
-    return await reviewService.createReview(restaurantId, reviewData)
+    return await reviewService.createReview(restaurantId, reviewData.rating, reviewData.review_text)
   } catch (err) {
-    return thunkAPI.rejectWithValue(err.response?.data?.message || 'Failed to submit review')
+    return thunkAPI.rejectWithValue(getErrorMessage(err, 'Failed to submit review'))
   }
 })
 
 export const updateReviewThunk = createAsyncThunk('review/update', async ({ reviewId, data }, thunkAPI) => {
   try {
-    return await reviewService.updateReview(reviewId, data)
+    return await reviewService.updateReview(reviewId, data.rating, data.review_text)
   } catch (err) {
-    return thunkAPI.rejectWithValue(err.response?.data?.message || 'Failed to update review')
+    return thunkAPI.rejectWithValue(getErrorMessage(err, 'Failed to update review'))
   }
 })
 
@@ -29,7 +32,7 @@ export const deleteReviewThunk = createAsyncThunk('review/delete', async (review
   try {
     return await reviewService.deleteReview(reviewId)
   } catch (err) {
-    return thunkAPI.rejectWithValue(err.response?.data?.message || 'Failed to delete review')
+    return thunkAPI.rejectWithValue(getErrorMessage(err, 'Failed to delete review'))
   }
 })
 

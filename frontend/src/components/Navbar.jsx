@@ -1,7 +1,21 @@
+import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { Navbar as BSNavbar, Nav, Container, Button } from 'react-bootstrap';
+import { Navbar as BSNavbar, Nav, Container, Button, Image } from 'react-bootstrap';
 
 function Navbar({ user, onLogout }) {
+    const [avatarLoadFailed, setAvatarLoadFailed] = useState(false);
+    const avatarUrl = user?.profile_picture
+        ? user.profile_picture.startsWith('http')
+            ? user.profile_picture
+            : user.profile_picture.startsWith('/')
+                ? user.profile_picture
+                : `/uploads/${user.profile_picture}`
+        : null;
+
+    useEffect(() => {
+        setAvatarLoadFailed(false);
+    }, [avatarUrl]);
+
     return (
         <BSNavbar bg="light" expand="lg" className="shadow-sm">
             <Container>
@@ -27,7 +41,28 @@ function Navbar({ user, onLogout }) {
                     <Nav>
                         {user ? (
                             <>
-                                <Nav.Link as={Link} to="/profile">{user.name}</Nav.Link>
+                                <Nav.Link as={Link} to="/profile" className="d-flex align-items-center gap-2">
+                                    {avatarUrl && !avatarLoadFailed ? (
+                                        <Image
+                                            src={avatarUrl}
+                                            roundedCircle
+                                            width={28}
+                                            height={28}
+                                            style={{ objectFit: 'cover', border: '2px solid #dee2e6' }}
+                                            onError={() => setAvatarLoadFailed(true)}
+                                        />
+                                    ) : (
+                                        <div style={{
+                                            width: 28, height: 28, borderRadius: '50%',
+                                            background: '#dc3545', color: 'white',
+                                            display: 'flex', alignItems: 'center', justifyContent: 'center',
+                                            fontSize: 12, fontWeight: 'bold', flexShrink: 0
+                                        }}>
+                                            {user.name?.charAt(0).toUpperCase()}
+                                        </div>
+                                    )}
+                                    {user.name}
+                                </Nav.Link>
                                 <Button variant="outline-danger" size="sm" onClick={onLogout}>Logout</Button>
                             </>
                         ) : (

@@ -1,0 +1,83 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: user-service
+  namespace: yelp-prototype
+spec:
+  template:
+    spec:
+      containers:
+        - name: user-service
+          imagePullPolicy: IfNotPresent
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: owner-service
+  namespace: yelp-prototype
+spec:
+  template:
+    spec:
+      containers:
+        - name: owner-service
+          imagePullPolicy: IfNotPresent
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: restaurant-service
+  namespace: yelp-prototype
+spec:
+  template:
+    spec:
+      containers:
+        - name: restaurant-service
+          imagePullPolicy: IfNotPresent
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: review-service
+  namespace: yelp-prototype
+spec:
+  template:
+    spec:
+      containers:
+        - name: review-service
+          imagePullPolicy: IfNotPresent
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: review-worker
+  namespace: yelp-prototype
+spec:
+  template:
+    spec:
+      containers:
+        - name: review-worker
+          imagePullPolicy: IfNotPresent
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: restaurant-worker
+  namespace: yelp-prototype
+spec:
+  template:
+    spec:
+      containers:
+        - name: restaurant-worker
+          imagePullPolicy: IfNotPresent
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: frontend
+  namespace: yelp-prototype
+spec:
+  template:
+    spec:
+      containers:
+        - name: frontend
+          imagePullPolicy: IfNotPresent

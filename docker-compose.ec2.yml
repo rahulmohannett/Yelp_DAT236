@@ -1,0 +1,106 @@
+services:
+  user-service:
+    environment:
+      SECRET_KEY: ${SECRET_KEY:?SECRET_KEY is required}
+      CORS_ORIGINS: ${CORS_ORIGINS:?CORS_ORIGINS is required}
+    command: uvicorn app.main_user:app --host 0.0.0.0 --port 8001
+    restart: unless-stopped
+    volumes:
+      - uploads_data:/app/uploads
+    logging:
+      driver: json-file
+      options:
+        max-size: "20m"
+        max-file: "5"
+
+  owner-service:
+    environment:
+      SECRET_KEY: ${SECRET_KEY:?SECRET_KEY is required}
+      CORS_ORIGINS: ${CORS_ORIGINS:?CORS_ORIGINS is required}
+    command: uvicorn app.main_owner:app --host 0.0.0.0 --port 8002
+    restart: unless-stopped
+    volumes:
+      - uploads_data:/app/uploads
+    logging:
+      driver: json-file
+      options:
+        max-size: "20m"
+        max-file: "5"
+
+  restaurant-service:
+    environment:
+      SECRET_KEY: ${SECRET_KEY:?SECRET_KEY is required}
+      CORS_ORIGINS: ${CORS_ORIGINS:?CORS_ORIGINS is required}
+    command: uvicorn app.main_restaurant:app --host 0.0.0.0 --port 8003
+    restart: unless-stopped
+    volumes:
+      - uploads_data:/app/uploads
+    logging:
+      driver: json-file
+      options:
+        max-size: "20m"
+        max-file: "5"
+
+  review-service:
+    environment:
+      SECRET_KEY: ${SECRET_KEY:?SECRET_KEY is required}
+      CORS_ORIGINS: ${CORS_ORIGINS:?CORS_ORIGINS is required}
+    command: uvicorn app.main_review:app --host 0.0.0.0 --port 8004
+    restart: unless-stopped
+    volumes:
+      - uploads_data:/app/uploads
+    logging:
+      driver: json-file
+      options:
+        max-size: "20m"
+        max-file: "5"
+
+  review-worker:
+    environment:
+      SECRET_KEY: ${SECRET_KEY:?SECRET_KEY is required}
+    command: uvicorn app.main_review_worker:app --host 0.0.0.0 --port 8005
+    restart: unless-stopped
+    volumes:
+      - uploads_data:/app/uploads
+    logging:
+      driver: json-file
+      options:
+        max-size: "20m"
+        max-file: "5"
+
+  restaurant-worker:
+    environment:
+      SECRET_KEY: ${SECRET_KEY:?SECRET_KEY is required}
+    command: uvicorn app.main_restaurant_worker:app --host 0.0.0.0 --port 8006
+    restart: unless-stopped
+    volumes:
+      - uploads_data:/app/uploads
+    logging:
+      driver: json-file
+      options:
+        max-size: "20m"
+        max-file: "5"
+
+  frontend:
+    restart: unless-stopped
+    logging:
+      driver: json-file
+      options:
+        max-size: "20m"
+        max-file: "5"
+
+  mongodb:
+    restart: unless-stopped
+    logging:
+      driver: json-file
+      options:
+        max-size: "20m"
+        max-file: "5"
+
+  kafka:
+    restart: unless-stopped
+    logging:
+      driver: json-file
+      options:
+        max-size: "20m"
+        max-file: "5"

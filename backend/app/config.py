@@ -2,6 +2,7 @@
 Configuration management for the Yelp Prototype application.
 """
 from pydantic_settings import BaseSettings
+from pydantic import Field
 from typing import List
 import os
 
@@ -10,8 +11,9 @@ class Settings(BaseSettings):
     """Application settings loaded from environment variables."""
     
     # Database
-    DATABASE_URL: str
     MONGO_URI: str = Field(default="mongodb://localhost:27017/yelp_db")
+    KAFKA_BOOTSTRAP_SERVERS: str = Field(default="localhost:9092")
+
     
     # JWT
     SECRET_KEY: str

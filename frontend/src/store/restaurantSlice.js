@@ -1,19 +1,22 @@
 import { createSlice, createAsyncThunk } from '@reduxjs/toolkit'
 import restaurantService from '../services/restaurantService'
 
+const getErrorMessage = (err, fallback) =>
+  err.response?.data?.detail || err.response?.data?.message || err.message || fallback
+
 export const fetchRestaurantsThunk = createAsyncThunk('restaurant/fetchAll', async (filters, thunkAPI) => {
   try {
-    return await restaurantService.search(filters)
+    return await restaurantService.searchRestaurants(filters)
   } catch (err) {
-    return thunkAPI.rejectWithValue(err.response?.data?.message || 'Failed to fetch restaurants')
+    return thunkAPI.rejectWithValue(getErrorMessage(err, 'Failed to fetch restaurants'))
   }
 })
 
 export const fetchRestaurantByIdThunk = createAsyncThunk('restaurant/fetchById', async (id, thunkAPI) => {
   try {
-    return await restaurantService.get(id)
+    return await restaurantService.getRestaurant(id)
   } catch (err) {
-    return thunkAPI.rejectWithValue(err.response?.data?.message || 'Failed to fetch restaurant')
+    return thunkAPI.rejectWithValue(getErrorMessage(err, 'Failed to fetch restaurant'))
   }
 })
 

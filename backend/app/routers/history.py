@@ -1,3 +1,5 @@
+from app.models import to_str_id
+from bson import ObjectId
 """
 User history router for tracking reviews and restaurant submissions.
 """
@@ -19,7 +21,7 @@ async def get_user_review_history(
 ):
     """Get all reviews written by the current user."""
     reviews = await db.reviews.find(
-        {"user_id": current_user["_id"]}
+        {"user_id": ObjectId(current_user["id"])}
     ).sort("created_at", -1).to_list(None)
 
     results = []
@@ -29,7 +31,7 @@ async def get_user_review_history(
         review["user_name"] = current_user.get("name", "Unknown")
         review["restaurant_name"] = restaurant["name"] if restaurant else "Unknown Restaurant"
         review["review_photos"] = [p["photo_url"] for p in photos]
-        results.append(ReviewResponse.model_validate(review))
+        results.append(ReviewResponse.model_validate(to_str_id(review)))
     return results
 
 
@@ -40,12 +42,12 @@ async def get_user_restaurant_history(
 ):
     """Get all restaurants added by the current user."""
     restaurants = await db.restaurants.find(
-        {"owner_id": current_user["_id"]}
+        {"owner_id": ObjectId(current_user["id"])}
     ).sort("created_at", -1).to_list(None)
 
     results = []
     for restaurant in restaurants:
         stats = await calculate_restaurant_stats(restaurant["_id"], db)
         restaurant.update(stats)
-        results.append(RestaurantResponse.model_validate(restaurant))
+        results.append(RestaurantResponse.model_validate(to_str_id(restaurant)))
     return results

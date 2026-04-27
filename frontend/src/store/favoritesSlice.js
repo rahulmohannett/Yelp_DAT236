@@ -1,11 +1,14 @@
 import { createSlice, createAsyncThunk } from '@reduxjs/toolkit'
 import userService from '../services/userService'
 
+const getErrorMessage = (err, fallback) =>
+  err.response?.data?.detail || err.response?.data?.message || err.message || fallback
+
 export const fetchFavoritesThunk = createAsyncThunk('favorites/fetchAll', async (_, thunkAPI) => {
   try {
     return await userService.getFavorites()
   } catch (err) {
-    return thunkAPI.rejectWithValue(err.response?.data?.message || 'Failed to fetch favorites')
+    return thunkAPI.rejectWithValue(getErrorMessage(err, 'Failed to fetch favorites'))
   }
 })
 
@@ -13,7 +16,7 @@ export const addFavoriteThunk = createAsyncThunk('favorites/add', async (restaur
   try {
     return await userService.addFavorite(restaurantId)
   } catch (err) {
-    return thunkAPI.rejectWithValue(err.response?.data?.message || 'Failed to add favorite')
+    return thunkAPI.rejectWithValue(getErrorMessage(err, 'Failed to add favorite'))
   }
 })
 
@@ -21,7 +24,7 @@ export const removeFavoriteThunk = createAsyncThunk('favorites/remove', async (f
   try {
     return await userService.removeFavorite(favoriteId)
   } catch (err) {
-    return thunkAPI.rejectWithValue(err.response?.data?.message || 'Failed to remove favorite')
+    return thunkAPI.rejectWithValue(getErrorMessage(err, 'Failed to remove favorite'))
   }
 })
 

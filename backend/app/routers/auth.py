@@ -1,3 +1,4 @@
+from bson import ObjectId
 """
 Authentication router for user registration and login.
 """
@@ -6,6 +7,7 @@ from app.database import get_db
 from app.schemas import UserCreate, UserLogin, Token, UserResponse
 from app.services.auth import hash_password, verify_password, create_access_token
 from datetime import datetime, timedelta
+from app.models import to_str_id
 
 router = APIRouter(prefix="/auth", tags=["Authentication"])
 
@@ -30,7 +32,7 @@ async def register(user_data: UserCreate, db=Depends(get_db)):
     new_user["_id"] = result.inserted_id
 
     access_token = create_access_token(data={"sub": str(new_user["_id"])})
-    return Token(access_token=access_token, user=UserResponse.model_validate(new_user))
+    return Token(access_token=access_token, user=UserResponse.model_validate(to_str_id(new_user)))
 
 
 @router.post("/login", response_model=Token)
@@ -48,4 +50,4 @@ async def login(credentials: UserLogin, db=Depends(get_db)):
     })
 
     access_token = create_access_token(data={"sub": str(user["_id"])})
-    return Token(access_token=access_token, user=UserResponse.model_validate(user))
+    return Token(access_token=access_token, user=UserResponse.model_validate(to_str_id(user)))

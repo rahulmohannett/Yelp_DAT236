@@ -3,7 +3,23 @@ import { Container, Row, Col, Card, Form, Button, Alert } from 'react-bootstrap'
 import { userService } from '../services/userService';
 import api from '../services/api';
 
-const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000';
+const CITIES = [
+  'San Jose', 'San Francisco', 'Palo Alto', 'Berkeley', 'Oakland',
+  'Mountain View', 'Sunnyvale', 'Cupertino', 'Santa Clara', 'Fremont',
+  'Redwood City', 'San Mateo', 'Hayward', 'Milpitas', 'Campbell',
+  'Los Altos', 'Menlo Park'
+];
+const STATES = [
+  'AL','AK','AZ','AR','CA','CO','CT','DE','FL','GA','HI','ID','IL','IN','IA',
+  'KS','KY','LA','ME','MD','MA','MI','MN','MS','MO','MT','NE','NV','NH','NJ',
+  'NM','NY','NC','ND','OH','OK','OR','PA','RI','SC','SD','TN','TX','UT','VT',
+  'VA','WA','WV','WI','WY','DC'
+];
+const LANGUAGES = [
+  'English', 'Spanish', 'Mandarin', 'Hindi', 'Arabic', 'French', 'Portuguese',
+  'Japanese', 'Korean', 'German', 'Italian', 'Russian', 'Vietnamese', 'Tagalog',
+  'Bengali', 'Punjabi', 'Telugu', 'Tamil', 'Urdu', 'Persian', 'Turkish'
+];
 
 function ProfilePage({ user }) {
     const [profileData, setProfileData] = useState({
@@ -77,8 +93,8 @@ function ProfilePage({ user }) {
         try {
             await api.put('/users/me', profileData);
             setSuccess('Profile updated successfully!');
-        } catch {
-            setError('Failed to update profile');
+        } catch (err) {
+            setError(err.response?.data?.detail || err.response?.data?.message || err.message || 'Failed to update profile');
         }
     };
 
@@ -89,8 +105,8 @@ function ProfilePage({ user }) {
         try {
             await userService.updatePreferences(preferences);
             setSuccess('Preferences updated successfully!');
-        } catch {
-            setError('Failed to update preferences');
+        } catch (err) {
+            setError(err.response?.data?.detail || err.response?.data?.message || err.message || 'Failed to update preferences');
         }
     };
 
@@ -104,7 +120,7 @@ function ProfilePage({ user }) {
             setProfilePicture(result.profile_picture);
             setSuccess('Profile picture updated!');
         } catch (err) {
-            setError(err.response?.data?.detail || 'Failed to upload profile picture');
+            setError(err.response?.data?.detail || err.response?.data?.message || err.message || 'Failed to upload profile picture');
         }
     };
 
@@ -119,7 +135,11 @@ function ProfilePage({ user }) {
 
     // Build full URL for profile picture
     const pictureUrl = profilePicture
-        ? (profilePicture.startsWith('http') ? profilePicture : `${API_URL}${profilePicture}`)
+        ? profilePicture.startsWith('http')
+            ? profilePicture
+            : profilePicture.startsWith('/')
+                ? profilePicture
+                : `/uploads/${profilePicture}`
         : null;
 
     if (loading) {
@@ -139,10 +159,30 @@ function ProfilePage({ user }) {
                     <Card className="mb-4">
                         <Card.Body className="d-flex align-items-center gap-4">
                             <div className="profile-picture-container">
-                                <img
-                                    src={pictureUrl || 'https://via.placeholder.com/120?text=No+Photo'}
-                                    alt="Profile"
-                                />
+                                {pictureUrl ? (
+                                    <img
+                                        src={pictureUrl}
+                                        alt="Profile"
+                                        onError={() => setProfilePicture(null)}
+                                    />
+                                ) : (
+                                    <div
+                                        style={{
+                                            width: 120,
+                                            height: 120,
+                                            borderRadius: '50%',
+                                            background: '#dc3545',
+                                            color: 'white',
+                                            display: 'flex',
+                                            alignItems: 'center',
+                                            justifyContent: 'center',
+                                            fontSize: 36,
+                                            fontWeight: 'bold',
+                                        }}
+                                    >
+                                        {profileData.name?.charAt(0)?.toUpperCase() || 'U'}
+                                    </div>
+                                )}
                                 <div
                                     className="profile-picture-overlay"
                                     onClick={() => fileInputRef.current?.click()}
@@ -212,24 +252,22 @@ function ProfilePage({ user }) {
                                     <Col md={6}>
                                         <Form.Group className="mb-3">
                                             <Form.Label>City</Form.Label>
-                                            <Form.Control
-                                                type="text"
-                                                placeholder="e.g., San Francisco"
-                                                value={profileData.city}
-                                                onChange={(e) => setProfileData({ ...profileData, city: e.target.value })}
-                                            />
+                                            <Form.Select value={profileData.city} onChange={(e) => setProfileData({ ...profileData, city: e.target.value })}>
+                                                <option value="">Select a city</option>
+                                                {CITIES.map(c => <option key={c} value={c}>{c}</option>)}
+                                            </Form.Select>
                                         </Form.Group>
                                     </Col>
                                     <Col md={3}>
                                         <Form.Group className="mb-3">
                                             <Form.Label>State (Abbr.)</Form.Label>
-                                            <Form.Control
-                                                type="text"
-                                                placeholder="e.g., CA"
-                                                maxLength={2}
+                                            <Form.Select
                                                 value={profileData.state}
-                                                onChange={(e) => setProfileData({ ...profileData, state: e.target.value.toUpperCase() })}
-                                            />
+                                                onChange={(e) => setProfileData({ ...profileData, state: e.target.value })}
+                                            >
+                                                <option value="">Select state</option>
+                                                {STATES.map(s => <option key={s} value={s}>{s}</option>)}
+                                            </Form.Select>
                                         </Form.Group>
                                     </Col>
                                     <Col md={3}>
@@ -254,12 +292,20 @@ function ProfilePage({ user }) {
                                     <Col md={6}>
                                         <Form.Group className="mb-3">
                                             <Form.Label>Languages</Form.Label>
-                                            <Form.Control
-                                                type="text"
-                                                placeholder="e.g., English, Spanish (comma-separated)"
-                                                value={profileData.languages?.join(', ') || ''}
-                                                onChange={(e) => handleArrayChange('languages', e.target.value, true)}
-                                            />
+                                            <Form.Select
+                                                value={(profileData.languages && profileData.languages[0]) || ''}
+                                                onChange={(e) => {
+                                                    setProfileData({
+                                                        ...profileData,
+                                                        languages: e.target.value ? [e.target.value] : [],
+                                                    });
+                                                }}
+                                            >
+                                                <option value="">Select...</option>
+                                                {LANGUAGES.map((lang) => (
+                                                    <option key={lang} value={lang}>{lang}</option>
+                                                ))}
+                                            </Form.Select>
                                         </Form.Group>
                                     </Col>
                                     <Col md={6}>

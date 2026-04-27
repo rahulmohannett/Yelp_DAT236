@@ -31,7 +31,7 @@ class KafkaClient:
                 value_serializer=lambda v: json.dumps(v).encode('utf-8'),
                 compression_type='gzip',
                 acks='all',  # Wait for all replicas
-                retries=3
+                retry_backoff_ms=100
             )
             await self.producer.start()
             logger.info(f"Kafka producer started: {self.bootstrap_servers}")

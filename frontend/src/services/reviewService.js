@@ -8,7 +8,6 @@ export const reviewService = {
 
     async createReview(restaurantId, rating, reviewText) {
         const response = await api.post(`/reviews/restaurants/${restaurantId}/reviews`, {
-            restaurant_id: restaurantId,
             rating,
             review_text: reviewText,
         });

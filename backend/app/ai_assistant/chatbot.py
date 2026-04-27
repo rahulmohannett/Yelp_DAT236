@@ -2,16 +2,15 @@
 AI-powered restaurant recommendation chatbot using LangChain, LangGraph, and Tavily.
 """
 from typing import List, Dict, Any, Optional, TypedDict
-from sqlalchemy.orm import Session
-from sqlalchemy import or_, func
 from langchain_google_genai import ChatGoogleGenerativeAI
 from langchain_core.prompts import ChatPromptTemplate
 from tavily import TavilyClient
 from pydantic import BaseModel, Field
 from langgraph.graph import StateGraph, START, END
+from bson import ObjectId
 
 from app.config import settings
-from app.models import Restaurant, UserPreference, Review
+from app.models import RESTAURANTS, USER_PREFERENCES, REVIEWS, to_str_id
 
 
 class QueryFilters(BaseModel):
@@ -26,7 +25,7 @@ class QueryFilters(BaseModel):
 
 
 class GraphState(TypedDict):
-    user_id: int
+    user_id: str                        # MongoDB ObjectId string
     message: str
     conversation_history: List[Dict[str, str]]
     preferences: Optional[Dict[str, Any]]
@@ -42,11 +41,10 @@ class GraphState(TypedDict):
 class RestaurantChatbot:
     """AI chatbot for restaurant recommendations with LangGraph pipeline."""
 
-    def __init__(self, db: Session):
-        self.db = db
-        # Set to gemini-2.0-flash per Lab 1 requirements
+    def __init__(self, db):
+        self.db = db                    # Motor async database instance
         self.llm = ChatGoogleGenerativeAI(
-            model="gemini-2.5-flash", 
+            model="gemini-2.5-flash",
             api_key=settings.GOOGLE_API_KEY,
             temperature=0.7,
         )
@@ -81,7 +79,7 @@ class RestaurantChatbot:
     # -------------------------------------------------------------- entry point
     async def process_query(
         self,
-        user_id: int,
+        user_id: str,
         message: str,
         conversation_history: List[Dict[str, str]],
     ) -> Dict[str, Any]:
@@ -107,20 +105,21 @@ class RestaurantChatbot:
 
     # ------------------------------------------------------------------ nodes
     async def node_load_preferences(self, state: GraphState) -> dict:
-        prefs = (
-            self.db.query(UserPreference)
-            .filter(UserPreference.user_id == state["user_id"])
-            .first()
-        )
+        try:
+            oid = ObjectId(state["user_id"])
+        except Exception:
+            return {"preferences": None}
+
+        prefs = await self.db[USER_PREFERENCES].find_one({"user_id": oid})
         preferences = None
         if prefs:
             preferences = {
-                "cuisine_preferences": prefs.cuisine_preferences or [],
-                "price_range": prefs.price_range,
-                "dietary_needs": prefs.dietary_needs or [],
-                "location": prefs.location,
-                "ambiance_preferences": prefs.ambiance_preferences or [],
-                "sort_preference": prefs.sort_preference,
+                "cuisine_preferences": prefs.get("cuisine_preferences") or [],
+                "price_range": prefs.get("price_range"),
+                "dietary_needs": prefs.get("dietary_needs") or [],
+                "location": prefs.get("location"),
+                "ambiance_preferences": prefs.get("ambiance_preferences") or [],
+                "sort_preference": prefs.get("sort_preference"),
             }
         return {"preferences": preferences}
 
@@ -135,18 +134,6 @@ class RestaurantChatbot:
 
         filters = output.model_dump(exclude_none=True)
         requires_web = filters.pop("requires_web_search", False)
-
-        # Fill gaps from saved preferences
-        prefs = state.get("preferences")
-        if prefs:
-            if "cuisine_type" not in filters and prefs.get("cuisine_preferences"):
-                filters["cuisine_type"] = prefs["cuisine_preferences"][0]
-            if "price_range" not in filters and prefs.get("price_range"):
-                filters["price_range"] = prefs["price_range"]
-            if "location" not in filters and prefs.get("location"):
-                filters["location"] = prefs["location"]
-            if "dietary_needs" not in filters and prefs.get("dietary_needs"):
-                filters["dietary_needs"] = prefs["dietary_needs"][0]
 
         return {"filters": filters, "requires_web_search": requires_web}
 
@@ -165,17 +152,19 @@ class RestaurantChatbot:
 
     async def node_db_search(self, state: GraphState) -> dict:
         filters = state["filters"]
-        query = self.db.query(Restaurant)
+        query = {}
+        import re
 
         if filters.get("location"):
-            query = query.filter(
-                or_(
-                    Restaurant.city.ilike(f"%{filters['location']}%"),
-                    Restaurant.state.ilike(f"%{filters['location']}%"),
-                )
-            )
+            raw_location = filters["location"].strip().lower()
+            if raw_location not in {"near me", "nearby", "me"}:
+                pattern = re.compile(filters["location"], re.IGNORECASE)
+                query["$or"] = [{"city": pattern}, {"state": pattern}]
 
-        return {"restaurants": query.all()}
+        restaurants = await self.db[RESTAURANTS].find(query).to_list(100)
+        # Normalize _id → id
+        restaurants = [to_str_id(r) for r in restaurants]
+        return {"restaurants": restaurants}
 
     async def node_rank_restaurants(self, state: GraphState) -> dict:
         restaurants = state["restaurants"]
@@ -186,48 +175,64 @@ class RestaurantChatbot:
         for r in restaurants:
             score = 10.0
 
-            # Cuisine match
+            # Cuisine match - hard requirement when user specifies cuisine
             if filters.get("cuisine_type"):
-                if filters["cuisine_type"].lower() not in (r.cuisine_type or "").lower():
-                    score *= 0.1
+                user_cuisine = filters["cuisine_type"].lower()
+                rest_cuisine = (r.get("cuisine_type") or "").lower()
+                # Allow common synonyms (sushi -> japanese)
+                cuisine_synonyms = {
+                    "sushi": "japanese",
+                    "ramen": "japanese",
+                    "pasta": "italian",
+                    "pizza": "italian",
+                    "tacos": "mexican",
+                    "burritos": "mexican",
+                    "burger": "american",
+                    "burgers": "american",
+                    "steak": "american",
+                    "curry": "indian",
+                    "noodles": "chinese",
+                }
+                normalized_user = cuisine_synonyms.get(user_cuisine, user_cuisine)
+                if normalized_user not in rest_cuisine and user_cuisine not in rest_cuisine:
+                    continue  # Skip this restaurant entirely
 
             # Dietary hard constraint
             if filters.get("dietary_needs"):
-                if "vegan" in filters["dietary_needs"].lower() and "steakhouse" in (r.cuisine_type or "").lower():
+                if "vegan" in filters["dietary_needs"].lower() and \
+                   "steakhouse" in (r.get("cuisine_type") or "").lower():
                     score *= 0.0
 
             # Price match
-            if filters.get("price_range") and r.price_range != filters["price_range"]:
+            if filters.get("price_range") and r.get("price_range") != filters["price_range"]:
                 score *= 0.5
 
-            # Rating bonus
-            avg_rating = (
-                self.db.query(func.avg(Review.rating))
-                .filter(Review.restaurant_id == r.id)
-                .scalar()
-            )
+            # Rating bonus from reviews
+            avg_rating = await self._get_avg_rating(r["id"])
             if avg_rating:
-                score += float(avg_rating) * 2
+                score += avg_rating * 2
 
             # Preference tie-breaker
-            if prefs and r.cuisine_type in (prefs.get("cuisine_preferences") or []):
+            if prefs and r.get("cuisine_type") in (prefs.get("cuisine_preferences") or []):
                 score += 1.0
 
             if score > 0:
-                scored.append((r, score))
+                scored.append((r, score, avg_rating))
 
         scored.sort(key=lambda x: x[1], reverse=True)
-        ranked = [r for r, _ in scored]
 
         recommendations = [
             {
-                "restaurant": self._format_restaurant(r),
-                "reason": self._generate_reason(r, filters, prefs),
+                "restaurant": self._format_restaurant(r, avg),
+                "reason": self._generate_reason(r, filters, prefs, avg),
             }
-            for r in ranked[:5]
+            for r, _, avg in scored[:3]
         ]
 
-        return {"ranked_restaurants": ranked, "recommendations": recommendations}
+        return {
+            "ranked_restaurants": [r for r, _, _ in scored[:3]],
+            "recommendations": recommendations,
+        }
 
     async def node_generate_response(self, state: GraphState) -> dict:
         ctx = f"User query: {state['message']}\n\n"
@@ -238,14 +243,10 @@ class RestaurantChatbot:
             ctx += f"Live Web Info:\n{state['tavily_results']}\n\n"
 
         ctx += "Top recommended restaurants:\n"
-        for i, r in enumerate(state["ranked_restaurants"][:5], 1):
-            avg = (
-                self.db.query(func.avg(Review.rating))
-                .filter(Review.restaurant_id == r.id)
-                .scalar()
-            )
+        for i, r in enumerate(state["ranked_restaurants"], 1):
+            avg = await self._get_avg_rating(r["id"])
             rating_str = f"{avg:.1f}★" if avg else "No ratings"
-            ctx += f"{i}. {r.name} ({r.cuisine_type}, {r.price_range}) - {rating_str}\n"
+            ctx += f"{i}. {r['name']} ({r.get('cuisine_type')}, {r.get('price_range')}) - {rating_str}\n"
 
         prompt = ChatPromptTemplate.from_messages([
             (
@@ -260,55 +261,59 @@ class RestaurantChatbot:
         ])
         chain = prompt | self.llm
         response = await chain.ainvoke({"context": ctx})
-
         return {"response_text": response.content}
 
     # ------------------------------------------------------------ helpers
-    def _format_restaurant(self, restaurant: Restaurant) -> Dict[str, Any]:
-        avg_rating = (
-            self.db.query(func.avg(Review.rating))
-            .filter(Review.restaurant_id == restaurant.id)
-            .scalar()
-        )
-        review_count = (
-            self.db.query(func.count(Review.id))
-            .filter(Review.restaurant_id == restaurant.id)
-            .scalar()
-        )
+    async def _get_avg_rating(self, restaurant_id: str) -> Optional[float]:
+        """Fetch average rating for a restaurant from MongoDB reviews."""
+        try:
+            oid = ObjectId(restaurant_id)
+        except Exception:
+            return None
+        reviews = await self.db[REVIEWS].find(
+            {"restaurant_id": oid}, {"rating": 1}
+        ).to_list(None)
+        ratings = [r["rating"] for r in reviews if "rating" in r]
+        return sum(ratings) / len(ratings) if ratings else None
+
+    def _format_restaurant(self, restaurant: dict, avg_rating: Optional[float]) -> Dict[str, Any]:
         return {
-            "id": restaurant.id,
-            "name": restaurant.name,
-            "cuisine_type": restaurant.cuisine_type,
-            "price_range": restaurant.price_range,
-            "address": restaurant.address,
-            "city": restaurant.city,
-            "average_rating": float(avg_rating) if avg_rating else None,
-            "review_count": review_count or 0,
-            "created_at": restaurant.created_at.isoformat() if restaurant.created_at else None,
-            "updated_at": restaurant.updated_at.isoformat() if restaurant.updated_at else None
+            "id": restaurant["id"],
+            "name": restaurant.get("name"),
+            "cuisine_type": restaurant.get("cuisine_type"),
+            "price_range": restaurant.get("price_range"),
+            "address": restaurant.get("address"),
+            "city": restaurant.get("city"),
+            "state": restaurant.get("state"),
+            "zip_code": restaurant.get("zip_code"),
+            "phone": restaurant.get("phone"),
+            "website": restaurant.get("website"),
+            "hours": restaurant.get("hours"),
+            "amenities": restaurant.get("amenities", []),
+            "average_rating": avg_rating,
+            "review_count": 0,          # populated by rank node already
+            "photos": restaurant.get("photos", []),
+            "created_at": restaurant["created_at"].isoformat() if hasattr(restaurant.get("created_at"), "isoformat") else str(restaurant.get("created_at", "")),
+            "updated_at": restaurant["updated_at"].isoformat() if hasattr(restaurant.get("updated_at"), "isoformat") else str(restaurant.get("updated_at", "")),
         }
 
     def _generate_reason(
         self,
-        restaurant: Restaurant,
+        restaurant: dict,
         filters: Dict[str, Any],
         preferences: Optional[Dict[str, Any]],
+        avg_rating: Optional[float],
     ) -> str:
         reasons = []
 
-        if filters.get("cuisine_type") and restaurant.cuisine_type:
-            if filters["cuisine_type"].lower() in restaurant.cuisine_type.lower():
-                reasons.append(f"Matches your {restaurant.cuisine_type} preference")
+        if filters.get("cuisine_type") and restaurant.get("cuisine_type"):
+            if filters["cuisine_type"].lower() in restaurant["cuisine_type"].lower():
+                reasons.append(f"Matches your {restaurant['cuisine_type']} preference")
 
-        if filters.get("price_range") and restaurant.price_range == filters["price_range"]:
+        if filters.get("price_range") and restaurant.get("price_range") == filters["price_range"]:
             reasons.append("Within your price range")
 
-        avg = (
-            self.db.query(func.avg(Review.rating))
-            .filter(Review.restaurant_id == restaurant.id)
-            .scalar()
-        )
-        if avg and avg >= 4.5:
+        if avg_rating and avg_rating >= 4.5:
             reasons.append("Highly rated")
 
         if filters.get("occasion"):

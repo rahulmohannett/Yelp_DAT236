@@ -58,7 +58,7 @@ function OwnerDashboard() {
             setClaimResults(res.data);
             if (res.data.length === 0) setClaimError('No unclaimed restaurants found matching your search.');
         } catch (err) {
-            setClaimError('Search failed.');
+            setClaimError(err.response?.data?.detail || err.response?.data?.message || err.message || 'Search failed.');
         } finally {
             setClaimSearching(false);
         }
@@ -74,7 +74,7 @@ function OwnerDashboard() {
             setClaimSearch('');
             loadData();
         } catch (error) {
-            setClaimError(error.response?.data?.detail || 'Failed to claim restaurant');
+            setClaimError(error.response?.data?.detail || error.response?.data?.message || error.message || 'Failed to claim restaurant');
         }
     };
 
@@ -147,7 +147,7 @@ function OwnerDashboard() {
             loadData();
             setTimeout(() => setShowEditModal(false), 1000);
         } catch (error) {
-            setEditError(error.response?.data?.detail || 'Failed to update restaurant');
+            setEditError(error.response?.data?.detail || error.response?.data?.message || error.message || 'Failed to update restaurant');
         }
     };
 

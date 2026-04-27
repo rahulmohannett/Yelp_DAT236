@@ -1,0 +1,12 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: yelp-config
+  namespace: yelp-prototype
+data:
+  MONGO_HOST: mongodb
+  MONGO_PORT: "27017"
+  MONGO_DATABASE: yelp_db
+  # Set your real frontend domain(s) here.
+  CORS_ORIGINS: "https://api.example.com,https://app.example.com"
+  ALGORITHM: HS256
