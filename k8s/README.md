@@ -4,6 +4,8 @@
 
 This guide walks through deploying the Yelp prototype on a Kubernetes cluster (tested with minikube).
 
+For AWS EKS deployment on EC2 worker nodes, use the AWS overlay guide at `k8s/aws/README.md`.
+
 ## Architecture
 
 ```

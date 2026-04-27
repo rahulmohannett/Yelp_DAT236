@@ -1,3 +1,4 @@
+from app.models import to_str_id
 """
 Favorites/bookmarks router.
 """
@@ -19,14 +20,14 @@ async def get_favorites(
     db=Depends(get_db)
 ):
     """Get user's favorite restaurants."""
-    favorites = await db.favorites.find({"user_id": current_user["_id"]}).to_list(None)
+    favorites = await db.favorites.find({"user_id": ObjectId(current_user["id"])}).to_list(None)
     results = []
     for favorite in favorites:
         restaurant = await db.restaurants.find_one({"_id": favorite["restaurant_id"]})
         if restaurant:
             stats = await calculate_restaurant_stats(restaurant["_id"], db)
             restaurant.update(stats)
-            results.append(RestaurantResponse.model_validate(restaurant))
+            results.append(RestaurantResponse.model_validate(to_str_id(restaurant)))
     return results
 
 
@@ -42,14 +43,14 @@ async def add_favorite(
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Restaurant not found")
 
     existing = await db.favorites.find_one({
-        "user_id": current_user["_id"],
+        "user_id": ObjectId(current_user["id"]),
         "restaurant_id": ObjectId(favorite_data.restaurant_id)
     })
     if existing:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Restaurant already in favorites")
 
     await db.favorites.insert_one({
-        "user_id": current_user["_id"],
+        "user_id": ObjectId(current_user["id"]),
         "restaurant_id": ObjectId(favorite_data.restaurant_id),
         "created_at": datetime.utcnow()
     })
@@ -64,7 +65,7 @@ async def remove_favorite(
 ):
     """Remove a restaurant from favorites."""
     favorite = await db.favorites.find_one({
-        "user_id": current_user["_id"],
+        "user_id": ObjectId(current_user["id"]),
         "restaurant_id": ObjectId(restaurant_id)
     })
     if not favorite:

@@ -1,3 +1,4 @@
+from app.models import to_str_id
 """
 Review management router.
 """
@@ -48,7 +49,7 @@ async def get_restaurant_reviews(
     results = []
     for review in reviews:
         review_dict = await _build_review_response(review, db)
-        results.append(ReviewResponse.model_validate(review_dict))
+        results.append(ReviewResponse.model_validate(to_str_id(review_dict)))
     return results
 
 
@@ -71,7 +72,7 @@ async def create_review(
 
     existing = await db.reviews.find_one({
         "restaurant_id": ObjectId(restaurant_id),
-        "user_id": current_user["_id"]
+        "user_id": ObjectId(current_user["id"])
     })
     if existing:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="You have already reviewed this restaurant")
@@ -82,7 +83,7 @@ async def create_review(
     event = ReviewCreatedEvent(
         review_id=review_id,
         restaurant_id=restaurant_id,
-        user_id=str(current_user["_id"]),
+        user_id=str(ObjectId(current_user["id"])),
         rating=review_data.rating,
         review_text=review_data.review_text,
         photos=review_data.photos if hasattr(review_data, "photos") and review_data.photos else []
@@ -118,13 +119,13 @@ async def update_review(
     review = await db.reviews.find_one({"_id": ObjectId(review_id)})
     if not review:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Review not found")
-    if review["user_id"] != current_user["_id"]:
+    if review["user_id"] != ObjectId(current_user["id"]):
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Not authorized")
 
     event = ReviewUpdatedEvent(
         review_id=review_id,
         restaurant_id=str(review["restaurant_id"]),
-        user_id=str(current_user["_id"]),
+        user_id=str(ObjectId(current_user["id"])),
         rating=review_data.rating if hasattr(review_data, "rating") else None,
         review_text=review_data.review_text if hasattr(review_data, "review_text") else None,
         photos=review_data.photos if hasattr(review_data, "photos") else None
@@ -158,13 +159,13 @@ async def delete_review(
     review = await db.reviews.find_one({"_id": ObjectId(review_id)})
     if not review:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Review not found")
-    if review["user_id"] != current_user["_id"]:
+    if review["user_id"] != ObjectId(current_user["id"]):
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Not authorized")
 
     event = ReviewDeletedEvent(
         review_id=review_id,
         restaurant_id=str(review["restaurant_id"]),
-        user_id=str(current_user["_id"])
+        user_id=str(ObjectId(current_user["id"]))
     )
 
     await kafka.publish_event(
@@ -191,7 +192,7 @@ async def upload_review_photo(
     review = await db.reviews.find_one({"_id": ObjectId(review_id)})
     if not review:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Review not found")
-    if review["user_id"] != current_user["_id"]:
+    if review["user_id"] != ObjectId(current_user["id"]):
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Not authorized")
 
     allowed_types = ["image/jpeg", "image/png", "image/gif", "image/webp"]

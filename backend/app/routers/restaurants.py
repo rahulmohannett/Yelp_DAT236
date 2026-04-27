@@ -1,3 +1,4 @@
+from app.models import to_str_id
 """
 Restaurant management router.
 """
@@ -68,7 +69,9 @@ async def search_restaurants(
     for r in restaurants:
         stats = await calculate_restaurant_stats(r["_id"], db)
         r.update(stats)
-        results.append(RestaurantResponse.model_validate(r))
+        r["id"] = str(r.pop("_id"))
+        r["owner_id"] = str(r["owner_id"]) if r.get("owner_id") else None
+        results.append(RestaurantResponse.model_validate(to_str_id(r)))
     return results
 
 
@@ -86,7 +89,9 @@ async def get_restaurant(restaurant_id: str, db=Depends(get_db)):
     restaurant["view_count"] = (restaurant.get("view_count") or 0) + 1
     stats = await calculate_restaurant_stats(restaurant["_id"], db)
     restaurant.update(stats)
-    return RestaurantResponse.model_validate(restaurant)
+    restaurant["id"] = str(restaurant.pop("_id"))
+    restaurant["owner_id"] = str(restaurant["owner_id"]) if restaurant.get("owner_id") else None
+    return RestaurantResponse.model_validate(to_str_id(restaurant))
 
 
 @router.post("", status_code=202)
@@ -115,7 +120,7 @@ async def create_restaurant(
         website=restaurant_data.website if hasattr(restaurant_data, "website") else None,
         hours=restaurant_data.hours if hasattr(restaurant_data, "hours") else None,
         amenities=restaurant_data.amenities if hasattr(restaurant_data, "amenities") and restaurant_data.amenities else [],
-        owner_id=str(current_user["_id"]) if current_user.get("role") == "owner" else None,
+        owner_id=str(current_user["id"]) if current_user.get("role") == "owner" else None,
         photos=restaurant_data.photo_urls if hasattr(restaurant_data, "photo_urls") and restaurant_data.photo_urls else []
     )
 
@@ -143,7 +148,7 @@ async def update_restaurant(
     restaurant = await db.restaurants.find_one({"_id": ObjectId(restaurant_id)})
     if not restaurant:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Restaurant not found")
-    if restaurant.get("owner_id") != current_user["_id"]:
+    if restaurant.get("owner_id") != current_user["id"]:
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Not authorized")
 
     update_fields = restaurant_data.model_dump(exclude_unset=True)
@@ -153,7 +158,7 @@ async def update_restaurant(
     restaurant = await db.restaurants.find_one({"_id": ObjectId(restaurant_id)})
     stats = await calculate_restaurant_stats(restaurant["_id"], db)
     restaurant.update(stats)
-    return RestaurantResponse.model_validate(restaurant)
+    return RestaurantResponse.model_validate(to_str_id(restaurant))
 
 
 @router.post("/{restaurant_id}/photos")

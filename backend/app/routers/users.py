@@ -1,3 +1,5 @@
+from app.models import to_str_id
+from bson import ObjectId
 """
 User management router with profile picture upload.
 """
@@ -19,7 +21,7 @@ ALLOWED_IMAGE_TYPES = {"image/jpeg", "image/png", "image/gif", "image/webp"}
 @router.get("/me", response_model=UserResponse)
 async def get_current_user_profile(current_user=Depends(get_current_user)):
     """Get current user profile."""
-    return UserResponse.model_validate(current_user)
+    return UserResponse.model_validate(to_str_id(current_user))
 
 
 @router.put("/me", response_model=UserResponse)
@@ -33,11 +35,11 @@ async def update_user_profile(
     update_fields["updated_at"] = datetime.utcnow()
 
     await db.users.update_one(
-        {"_id": current_user["_id"]},
+        {"_id": ObjectId(current_user["id"])},
         {"$set": update_fields}
     )
-    updated_user = await db.users.find_one({"_id": current_user["_id"]})
-    return UserResponse.model_validate(updated_user)
+    updated_user = await db.users.find_one({"_id": ObjectId(current_user["id"])})
+    return UserResponse.model_validate(to_str_id(updated_user))
 
 
 @router.post("/me/profile-picture", response_model=UserResponse)
@@ -68,11 +70,11 @@ async def upload_profile_picture(
         f.write(contents)
 
     await db.users.update_one(
-        {"_id": current_user["_id"]},
+        {"_id": ObjectId(current_user["id"])},
         {"$set": {"profile_picture": f"/{filepath}", "updated_at": datetime.utcnow()}}
     )
-    updated_user = await db.users.find_one({"_id": current_user["_id"]})
-    return UserResponse.model_validate(updated_user)
+    updated_user = await db.users.find_one({"_id": ObjectId(current_user["id"])})
+    return UserResponse.model_validate(to_str_id(updated_user))
 
 
 @router.get("/me/preferences", response_model=UserPreferencesResponse)
@@ -81,10 +83,10 @@ async def get_user_preferences(
     db=Depends(get_db)
 ):
     """Get user preferences."""
-    preferences = await db.preferences.find_one({"user_id": current_user["_id"]})
+    preferences = await db.user_preferences.find_one({"user_id": ObjectId(current_user["id"])})
     if not preferences:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Preferences not found")
-    return UserPreferencesResponse.model_validate(preferences)
+    return UserPreferencesResponse.model_validate(to_str_id(preferences))
 
 
 @router.put("/me/preferences", response_model=UserPreferencesResponse)
@@ -94,19 +96,19 @@ async def update_user_preferences(
     db=Depends(get_db)
 ):
     """Create or update user preferences."""
-    existing = await db.preferences.find_one({"user_id": current_user["_id"]})
+    existing = await db.user_preferences.find_one({"user_id": ObjectId(current_user["id"])})
     update_fields = preferences_data.model_dump(exclude_unset=True)
     update_fields["updated_at"] = datetime.utcnow()
 
     if existing:
-        await db.preferences.update_one(
-            {"user_id": current_user["_id"]},
+        await db.user_preferences.update_one(
+            {"user_id": ObjectId(current_user["id"])},
             {"$set": update_fields}
         )
     else:
-        update_fields["user_id"] = current_user["_id"]
+        update_fields["user_id"] = ObjectId(current_user["id"])
         update_fields["created_at"] = datetime.utcnow()
-        await db.preferences.insert_one(update_fields)
+        await db.user_preferences.insert_one(update_fields)
 
-    preferences = await db.preferences.find_one({"user_id": current_user["_id"]})
-    return UserPreferencesResponse.model_validate(preferences)
+    preferences = await db.user_preferences.find_one({"user_id": ObjectId(current_user["id"])})
+    return UserPreferencesResponse.model_validate(to_str_id(preferences))

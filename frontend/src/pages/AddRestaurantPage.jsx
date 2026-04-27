@@ -3,6 +3,18 @@ import { Container, Row, Col, Card, Form, Button, Alert } from 'react-bootstrap'
 import { useNavigate } from 'react-router-dom';
 import { restaurantService } from '../services/restaurantService';
 
+const CITIES = [
+  'San Jose', 'San Francisco', 'Palo Alto', 'Berkeley', 'Oakland',
+  'Mountain View', 'Sunnyvale', 'Cupertino', 'Santa Clara', 'Fremont',
+  'Redwood City', 'San Mateo', 'Hayward', 'Milpitas', 'Campbell',
+  'Los Altos', 'Menlo Park'
+];
+const STATES = [
+  'AL','AK','AZ','AR','CA','CO','CT','DE','FL','GA','HI','ID','IL','IN','IA',
+  'KS','KY','LA','ME','MD','MA','MI','MN','MS','MO','MT','NE','NV','NH','NJ',
+  'NM','NY','NC','ND','OH','OK','OR','PA','RI','SC','SD','TN','TX','UT','VT',
+  'VA','WA','WV','WI','WY','DC'
+];
 const DAYS_OF_WEEK = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
 
 function AddRestaurantPage() {
@@ -93,7 +105,7 @@ function AddRestaurantPage() {
             const result = await restaurantService.createRestaurant(payload);
             navigate(`/restaurants/${result.id}`);
         } catch (err) {
-            setError(err.response?.data?.detail || 'Failed to create restaurant');
+            setError(err.response?.data?.detail || err.response?.data?.message || err.message || 'Failed to create restaurant');
         } finally {
             setLoading(false);
         }
@@ -184,26 +196,23 @@ function AddRestaurantPage() {
                                     <Col md={5}>
                                         <Form.Group className="mb-3">
                                             <Form.Label>City</Form.Label>
-                                            <Form.Control
-                                                type="text"
-                                                name="city"
-                                                placeholder="e.g., San Francisco"
-                                                value={formData.city}
-                                                onChange={handleChange}
-                                            />
+                                            <Form.Select name="city" value={formData.city} onChange={handleChange}>
+                                                <option value="">Select a city</option>
+                                                {CITIES.map(c => <option key={c} value={c}>{c}</option>)}
+                                            </Form.Select>
                                         </Form.Group>
                                     </Col>
                                     <Col md={3}>
                                         <Form.Group className="mb-3">
                                             <Form.Label>State (Abbr.)</Form.Label>
-                                            <Form.Control
-                                                type="text"
+                                            <Form.Select
                                                 name="state"
-                                                placeholder="e.g., CA"
-                                                maxLength={2}
                                                 value={formData.state}
-                                                onChange={(e) => setFormData({ ...formData, state: e.target.value.toUpperCase() })}
-                                            />
+                                                onChange={handleChange}
+                                            >
+                                                <option value="">Select state</option>
+                                                {STATES.map(s => <option key={s} value={s}>{s}</option>)}
+                                            </Form.Select>
                                         </Form.Group>
                                     </Col>
                                     <Col md={4}>
